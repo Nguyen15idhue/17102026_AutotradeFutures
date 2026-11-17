@@ -9,10 +9,12 @@ from fastapi.responses import JSONResponse
 from .api_account import router as account_router
 from .api_core import router as core_router
 from .api_market import router as market_router
+from .api_order import router as order_router
 from .auth import LIMITS, is_order_route, weight_for
 from .config import CFG
 from .errors import BinanceError
 from .market import MARKET
+from .orders import ENGINE
 from .store import STORE
 
 logging.basicConfig(
@@ -92,16 +94,34 @@ def create_app() -> FastAPI:
     app.include_router(core_router)
     app.include_router(market_router)
     app.include_router(account_router)
+    app.include_router(order_router)
+
+    async def _engine_loop() -> None:
+        import asyncio
+        while True:
+            try:
+                ENGINE.tick()
+            except Exception:  # pragma: no cover
+                log.exception("engine tick loi")
+            await asyncio.sleep(1.0)
 
     @app.on_event("startup")
     async def _startup() -> None:
         MARKET.boot()
         STORE.init(CFG.db_path, CFG.initial_balance)
+        import asyncio
+        app.state.engine_task = asyncio.create_task(_engine_loop())
         log.info(
             "mock started market_mode=%s speed=%s balance=%s auth_strict=%s symbols=%d db=%s",
             CFG.market_mode, CFG.speed, CFG.initial_balance, CFG.auth_strict,
             len(MARKET.symbols()), CFG.db_path,
         )
+
+    @app.on_event("shutdown")
+    async def _shutdown() -> None:
+        task = getattr(app.state, "engine_task", None)
+        if task:
+            task.cancel()
 
     return app
 

@@ -567,29 +567,37 @@ Mock giữ "sổ" của tài khoản: balance, position, leverage, margin type. 
 
 ### Checklist test
 
-- [ ] Market BUY 0,01 BTC → position 0,01, balance giảm phí
-- [ ] LIMIT không khớp → nằm trong `openOrders`
-- [ ] DELETE lệnh đó → status CANCELED
-- [ ] DELETE lần 2 → `-2011`
-- [ ] Qty 0.0001 BTC (dưới step 0,001) → `-4023` (hoặc `-1111`)
-- [ ] Notional 3 USDT → `-4164`
-- [ ] STOP_MARKET qua `/order` → `-4120`
-- [ ] Trùng `newClientOrderId` → lỗi, 1 lệnh duy nhất
-- [ ] Đóng position → realized PnL đúng, `availableBalance` về đúng
+- [x] Market BUY 0,002 BTC → position 0,002, balance giảm phí
+- [x] LIMIT không khớp → nằm trong `openOrders`
+- [x] `tick()` khớp lệnh LIMIT khi giá chạm → FILLED
+- [x] DELETE lệnh → CANCELED; DELETE lần 2 → `-2011`
+- [x] Qty dưới step → `-1111`
+- [x] Price sai tick → `-4014`
+- [x] Notional < minNotional → `-4164`
+- [x] STOP_MARKET qua `/order` → `-4120` (5 type điều kiện)
+- [x] Trùng `newClientOrderId` → `-2010`, chỉ 1 lệnh được tạo
+- [x] `order/test` không tạo lệnh
+- [x] reduceOnly khi không có vị thế → `-2021`
+- [x] Margin không đủ → `-2019`
+- [x] GTX sẽ khớp ngay → `-5022`
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| Order CRUD | ⬜ Chưa | | |
-| Filter validation | ⬜ Chưa | | |
-| Fill + position + fee | ⬜ Chưa | | |
-| Idempotency | ⬜ Chưa | | |
+| Order CRUD | ✅ | container: market FILLED, `openOrders` 0→1→0, cancel 2 lần → `-2011` | 17/11/2026 |
+| Filter validation | ✅ | `-1111` (step), `-4014` (tick), `-4164` (notional), `-2019` (margin) | 17/11/2026 |
+| Fill + position + fee | ✅ | 53 test pass; phí ghi vào `fills`, wallet giảm đúng | 17/11/2026 |
+| Idempotency | ✅ | lặp `newClientOrderId` → `-2010 Duplicate order sent.` | 17/11/2026 |
+| `-4120` | ✅ | container + test: cả 5 type điều kiện bị chặn | 17/11/2026 |
 
 ### Ghi chú
 
-- `fill_model: pessimistic` là mặc định — nếu optimistic, test của bạn sẽ lạc quan hơn live và đó chính là bẫy §3.7.
-- Slippage 5 bps mặc định; cho phép override bằng env để test slippage xấu (30 bps).
+- **Không partial fill** (Tier B): mỗi lệnh khớp toàn bộ. Muốn test ADL/partial phải bật ở P1.
+- `fill_model=pessimistic`: lệnh LIMIT chỉ khớp khi **ask ≤ giá mua** (giá xuyên qua), không khớp khi chỉ chạm.
+- Slippage 5 bps áp cho MARKET và LIMIT khớp ngay (taker); LIMIT nghỉ khớp ở đúng giá limit (maker).
+- `quantity` mặc định trong test là 0,002 BTC để vượt minNotional 50 USDT của BTCUSDT.
+- Lệnh nghỉ được khớp bởi `ENGINE.tick()` chạy mỗi 1s trong background task (không phải bởi request của client).
 
 ---
 

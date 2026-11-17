@@ -10,7 +10,7 @@ import hashlib
 import json
 import math
 import time
-from decimal import Decimal
+from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -167,12 +167,17 @@ class Market:
         return (base * dec(1 + wave + drift + noise + jump)).quantize(Decimal("0.00000001"))
 
     def quote(self, symbol: str) -> tuple[Decimal, Decimal]:
-        """(bid, ask) — dung cho matching."""
+        """(bid, ask) — da snap ve tickSize, dung cho matching."""
         s = symbol.upper()
         f = self.filters(s)
+        tick = f["tick"]
         mid = self.last_price(s)
-        spread = max(f["tick"], (mid * Decimal("0.00005")).quantize(f["tick"]))
-        return mid - spread / 2, mid + spread / 2
+        spread = max(tick, (mid * Decimal("0.00005")).quantize(tick))
+        bid = ((mid - spread / 2) / tick).to_integral_value(rounding=ROUND_DOWN) * tick
+        ask = ((mid + spread / 2) / tick).to_integral_value(rounding=ROUND_UP) * tick
+        if ask <= bid:
+            ask = bid + tick
+        return bid, ask
 
     # ------------------------------------------------------------ klines
 
