@@ -1,0 +1,47 @@
+# Mock Binance USDⓈ-M Futures — dùng cho dev/test offline.
+# KHÔNG dùng env_file: .env ở đây: file đó chứa secret Binance thật và mock không cần.
+
+services:
+  binance-demo-server:
+    build: ./mock/binance-demo-server
+    container_name: binance-demo-server
+    environment:
+      TZ: UTC
+      MARKET_MODE: ${MOCK_MARKET_MODE:-proxy}          # proxy | replay | synthetic
+      UPSTREAM: ${MOCK_UPSTREAM:-https://fapi.binance.com}
+      FIXTURES_DIR: /app/fixtures
+      SEED: ${MOCK_SEED:-42}
+      SPEED: ${MOCK_SPEED:-1}
+      INITIAL_BALANCE: ${MOCK_INITIAL_BALANCE:-5000}
+      FEE_MAKER_BPS: "2"
+      FEE_TAKER_BPS: "5"
+      FILL_MODEL: pessimistic                           # pessimistic | optimistic
+      SLIPPAGE_BPS: "5"
+      AUTH_STRICT: "true"
+      FAIL_RATE: "0"
+      LOG_LEVEL: INFO
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - mockdata:/app/data
+      - ./mock/fixtures:/app/fixtures:ro
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 256m
+    cpus: "0.5"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/fapi/v1/ping',timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  mockdata:

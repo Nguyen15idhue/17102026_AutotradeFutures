@@ -343,24 +343,29 @@ Dựng container rỗng nhưng **healthy**, để từ đó thêm endpoint. Làm
 
 ### Checklist test
 
-- [ ] `docker compose up -d binance-demo-server` → healthy
-- [ ] `curl 127.0.0.1:8081/fapi/v1/ping` → `{}`
-- [ ] `curl .../fapi/v1/time` → `serverTime` cùng giây với host
-- [ ] Engine trỏ vào mock, log không có lỗi kết nối
-- [ ] `docker stats` RAM < 200 MB sau 1 giờ
+- [x] `docker compose up -d binance-demo-server` → healthy
+- [x] `curl 127.0.0.1:8081/fapi/v1/ping` → `{}`
+- [x] `curl .../fapi/v1/time` → `serverTime` cùng giây với host
+- [x] `/_debug` trả HTML 200, `/_debug/json` trả JSON
+- [x] `docker stats` RAM < 200 MB
+- [ ] Engine trỏ vào mock — **chưa áp dụng** (engine chưa tồn tại)
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| Container healthy | ⬜ Chưa | | |
-| Env override ở engine | ⬜ Chưa | | |
-| RAM < 200 MB | ⬜ Chưa | | |
+| Container healthy | ✅ | `docker compose ps` → `Up (healthy)`, port `127.0.0.1:8081->8080` | 17/11/2026 |
+| Startup | ✅ | local 1.350 ms < 3.000 ms | 17/11/2026 |
+| RAM | ✅ | `docker stats` → **35,77 MiB** / 256 MiB; CPU 0,15% | 17/11/2026 |
+| `/ping` `/time` `/healthz` | ✅ | `{}` · `serverTime` lệch host −64 ms · `{"status":"ok"}` | 17/11/2026 |
+| `/_debug` | ✅ | HTTP 200, HTML + `/_debug/json` đủ panel | 17/11/2026 |
+| read-only filesystem | ✅ | `read_only: true` + tmpfs `/tmp` chạy được | 17/11/2026 |
 
 ### Ghi chú
 
-- Port: mock dùng 8080 **bên trong**, map ra 8081 **bên ngoài** để không đụng dashboard.
-- Đừng mount Docker socket, không `privileged`, không `network_mode: host`.
+- Port: mock **8080 bên trong**, map `127.0.0.1:8081` bên ngoài để không đụng dashboard.
+- **Không** dùng `env_file: .env` cho mock: file đó chứa secret Binance thật, mock không cần. Chỉ truyền env tường minh.
+- `/_debug` là **công cụ debug** (FE của Phase 0), read-only, không có form ghi, không gọi endpoint làm đổi state — không thuộc luồng giao dịch.
 
 ---
 
@@ -395,28 +400,33 @@ Mock phải khó tính y như thật: đúng thứ tự param, đúng timestamp,
 
 ### Checklist test
 
-- [ ] Golden signature → 200
-- [ ] Sai secret → `-1022`
-- [ ] Sai thứ tự param → `-1022`
-- [ ] `timestamp` lệch 10s → `-1021`
-- [ ] recvWindow = 1 → `-1021` (giả lập delay)
-- [ ] Key sai → `-2015`
-- [ ] Gọi 2401 weight → 429 + `Retry-After`
-- [ ] Tiếp tục gọi sau 429 → 418
+- [x] Golden signature → 200 (unit test + gọi container thật)
+- [x] Sai secret → `-1022`
+- [x] Sai thứ tự param → `-1022`
+- [x] `timestamp` lệch 20s → `-1021`
+- [x] `recvWindow` nhỏ + timestamp cũ → `-1021`
+- [x] Key sai → `-2015` (khi `MOCK_API_KEY` được đặt); thiếu key → `-2014`
+- [x] Vượt weight → 429 + `Retry-After`
+- [x] Tiếp tục gọi sau 429 → 418
+- [x] Header `X-MBX-USED-WEIGHT-1M` có trên mọi response
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| HMAC verify | ⬜ Chưa | | |
-| Timing check | ⬜ Chưa | | |
-| Weight/order header | ⬜ Chưa | | |
-| 429/418 | ⬜ Chưa | | |
+| HMAC verify | ✅ | 15 test pass; golden vector `3c661234…694af9` khớp | 17/11/2026 |
+| Timing check | ✅ | `-1021` khi lệch 20s và khi `recvWindow=100` | 17/11/2026 |
+| Weight + order header | ✅ | container trả `x-mbx-used-weight-1m`, `x-mbx-order-count-10s/1m` | 17/11/2026 |
+| 429 → 418 | ✅ | test hạ limit xuống 30: lần 2 → 429, lần 3 → 418 | 17/11/2026 |
+| Signed endpoint thật | ✅ | `GET /fapi/v1/commissionRate` → `0.000200 / 0.000500` | 17/11/2026 |
 
 ### Ghi chú
 
-- `signature` **không** được nằm trong chuỗi ký. Đây là lỗi phổ biến nhất khi tự implement.
-- Param rỗng phải bị loại khỏi chuỗi ký (giống Binance) — test riêng case `price=`.
+- `signature` **không** nằm trong chuỗi ký — đã tách bằng `split_total_params`, có test riêng.
+- Mock **chấp nhận mọi key không rỗng** theo mặc định (giống demo sẵn sàng cho engine). Chỉ khi đặt `MOCK_API_KEY` mới trả `-2015` cho key sai.
+- Secret dùng để verify là `MOCK_API_SECRET`, mặc định `mock-secret` — **không phải** secret Binance thật.
+- Trọng số endpoint lấy theo docs nhưng có thể lệch nhỏ; đây là Tier B. Ghi nhận `commissionRate = 20`.
+- Header bị uvicorn chuyển về chữ thường (`x-mbx-…`) — HTTP header không phân biệt hoa thường, engine phải đọc case-insensitive.
 
 ---
 
