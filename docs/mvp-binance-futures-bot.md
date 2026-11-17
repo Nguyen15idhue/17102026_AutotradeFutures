@@ -2,7 +2,8 @@
 
 **Kế hoạch triển khai cho người mới (dân CNTT, chưa biết trading/bot)**
 
-- Phiên bản: 1.7 (thêm service `binance-demo-server` giả lập USDⓈ-M Futures cho dev/test offline — xem `docs/phase0-binance-demo-server.md`)
+- Phiên bản: 1.8 (kết quả xác minh live 17/11/2026: minNotional không đồng nhất — BTC 50 · ETH/LINK 20 · alt 5; ghi tại `docs/verification.md`)
+- Lịch sử: 1.7 (thêm service `binance-demo-server` giả lập USDⓈ-M Futures cho dev/test offline — xem `docs/phase0-binance-demo-server.md`)
 - Lịch sử: 1.6 (chi phí thật: VPS tận dụng sẵn = 0; AI gate dùng GLM 5.3 Flash + DeepSeek V4 Flash ≈ 2–7 USD/tháng; tách tài liệu triển khai theo phase)
 - Lịch sử: 1.5 (thêm margin_usage_max 60% + cảnh báo stop hẹp < 0,5%)
 - Lịch sử: 1.4 (rà soát chéo: fix max positions demo 3→4; allocation shadow không tiêu budget; risk live 0,25% 4 tuần đầu; fee/slippage/recvWindow vào config; DASH_* vào .env; Telegram group outbound-only + .env.example)
@@ -325,7 +326,7 @@ Làm **trước khi viết chiến lược**. Mỗi mục phải có kết quả
 | 2 | Demo WS host | Kết nối thử `wss://demo-fstream.binance.com` và `wss://fstream.binancefuture.com` | Một trong hai nhận dữ liệu; ghi lại host đúng |
 | 3 | Demo hỗ trợ Algo Order | `POST /fapi/v1/algoOrder` với `STOP_MARKET` size nhỏ | Trả `algoId`; nếu không, dùng testnet khác hoặc mô phỏng SL trong bot |
 | 4 | Phí thực tế | `GET /fapi/v1/commissionRate` | ~0,02% maker / 0,05% taker |
-| 5 | Min notional | `GET /fapi/v1/exchangeInfo` → filter `NOTIONAL`/`MIN_NOTIONAL` | Thường 5 USDT/symbol; có thể thay đổi |
+| 5 | Min notional | `GET /fapi/v1/exchangeInfo` → filter `NOTIONAL`/`MIN_NOTIONAL` | **Đã đo 17/11/2026:** BTC 50 · ETH/LINK 20 · XRP/ADA/BNB/DOGE/SOL/AVAX/SUI 5 (USDT). Không đồng nhất — phải đọc per-symbol |
 | 6 | Tick/step | `exchangeInfo` → `PRICE_FILTER.tickSize`, `LOT_SIZE.stepSize` | Phải round đúng, nếu không lỗi `-4014`/`-4023` |
 | 7 | Rate limit | Response header `X-MBX-USED-WEIGHT-1M` | 2.400 weight/phút/IP; 1.200 lệnh/phút; 300 lệnh/10s |
 | 8 | Algo migration | Gửi `STOP_MARKET` vào `/fapi/v1/order` | Phải nhận `-4120` → dùng `/fapi/v1/algoOrder` |
@@ -1492,7 +1493,7 @@ notional     = size × price = risk$ / stop%
 
 → Với stop 0,4–1,2%, leverage thực chỉ 0,4–1,25x. **Đòn bẩy 3x không bao giờ bị chạm** trừ khi stop cực hẹp. Đây là điều tốt.
 
-Lưu ý min notional 5 USDT và stepSize: size sau khi round có thể nhỏ hơn kỳ vọng → risk thực tế thấp hơn 0,5%. Chấp nhận; **không tăng risk để bù**.
+Lưu ý min notional và stepSize (per-symbol: BTC 50 · ETH/LINK 20 · alt khác 5 USDT): size sau khi round có thể nhỏ hơn kỳ vọng → risk thực tế thấp hơn 0,5%. Chấp nhận; **không tăng risk để bù**.
 
 ## 10.3 Bài toán phí — con số quan trọng nhất
 
