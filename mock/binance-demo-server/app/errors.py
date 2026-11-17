@@ -48,6 +48,7 @@ MIN_NOTIONAL_FAIL = (-4164, "Order's notional must be no smaller than {n} (unles
 POST_ONLY_WOULD_TAKE = (-5022, "Due to the order could not be executed as maker, the post-only order will be canceled.")
 STOP_ORDER_SWITCH_ALGO = (-4120, "Order type not supported for this endpoint. Please use the Algo Order API endpoints instead.")
 POSITION_SIDE_INVALID = (-4061, "Order's position side does not match user's setting.")
+MARGIN_TYPE_HAS_POSITION = (-4048, "Margin type cannot be changed if there exists position.")
 
 # --- algo ---
 ALGO_NOT_FOUND = (-2013, "Algo order does not exist.")

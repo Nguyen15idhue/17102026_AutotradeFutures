@@ -510,24 +510,32 @@ Mock giữ "sổ" của tài khoản: balance, position, leverage, margin type. 
 
 ### Checklist test
 
-- [ ] Balance ban đầu = 5000
-- [ ] Mở 0,01 BTC long → isolatedWallet = notional/leverage
-- [ ] Mark tăng 1% → uPnL = +notional×1%
-- [ ] Short: mark tăng 1% → uPnL âm
-- [ ] `availableBalance` giảm đúng bằng margin
-- [ ] Restart → balance/position giữ nguyên
+- [x] Balance ban đầu = 5000
+- [x] Mở 0,01 BTC long → margin ≈ notional/leverage (200–240 USDT)
+- [x] uPnL đúng dấu long/short
+- [x] Realized PnL đúng số khi đóng (10 USDT cho 0,01 BTC × 1000 giá)
+- [x] `availableBalance` giảm đúng bằng margin
+- [x] Flip vị thế (long 0,01 → short 0,02) đúng entry mới
+- [x] Công thức thanh lý khớp `entry×(1−1/L)/(1−MMR)`
+- [x] Đổi leverage / marginType; chặn `-4048` khi đã có vị thế
+- [x] Persist: đóng store rồi mở lại từ file → wallet + position giữ nguyên
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| Balance/account | ⬜ Chưa | | |
-| PositionRisk | ⬜ Chưa | | |
-| Persist | ⬜ Chưa | | |
+| Balance/account | ✅ | container: `wallet 5000.00000000`, 41 test pass | 17/11/2026 |
+| PositionRisk | ✅ | `posRisk` 200, số vị thế 0; test có vị thế trả đúng `positionAmt/entry/liq` | 17/11/2026 |
+| Bracket MMR | ✅ | `maintMarginRatio 0.004` cho BTC | 17/11/2026 |
+| Set leverage | ✅ | POST `/fapi/v1/leverage` → `{"leverage":3}` | 17/11/2026 |
+| Persist | ✅ | test `tmp_path` mở lại store giữ wallet + position | 17/11/2026 |
 
 ### Ghi chú
 
-- Ghi rõ công thức trong `mock/README.md`: nếu không, sau này không ai biết "số này từ đâu ra".
+- Toàn bộ tiền lưu **TEXT (Decimal)** trong SQLite, không dùng float — tránh sai số khi so khớp tick/step.
+- `availableBalance = wallet + ΣuPnL − ΣinitialMargin`, sàn 0. Đây là Tier B (Binance còn tính maint margin và cross collateral).
+- `canWithdraw` trong `/fapi/v2/account` mock **luôn false** — tránh lặp lại bẫy `canWithdraw` ở `docs/verification.md`.
+- Vị thế 1 chiều (one-way), mỗi symbol 1 dòng; chưa hỗ trợ hedge mode (Tier C).
 
 ---
 

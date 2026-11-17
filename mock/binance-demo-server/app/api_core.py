@@ -32,7 +32,32 @@ async def debug_page() -> str:
 
 @router.get("/_debug/json")
 async def debug_json() -> dict:
-    return state.snapshot()
+    from . import account as A
+    from .num import fmt
+    from .store import STORE
+
+    d = state.snapshot()
+    d["account"] = {"wallet": fmt(A.wallet()), "available": fmt(A.available())}
+    d["positions"] = [
+        {"symbol": p["symbol"], "amt": p["positionAmt"], "entry": p["entryPrice"],
+         "upnl": p["unRealizedProfit"]}
+        for p in A.position_risk_view() if p["positionAmt"] != "0"
+    ]
+    d["orders"] = [
+        {"symbol": o["symbol"], "side": o["side"], "type": o["type"],
+         "qty": o["orig_qty"], "price": o["price"], "status": o["status"]}
+        for o in STORE.orders(status="NEW")
+    ]
+    d["algo_orders"] = [
+        {"symbol": a["symbol"], "type": a["type"], "trigger": a["trigger_price"],
+         "status": a["status"]}
+        for a in STORE.algos(status="NEW")
+    ]
+    d["events"] = [
+        {"ts": e["ts_ms"], "text": f"[{e['kind']}] {e['text']}"}
+        for e in STORE.events(10)
+    ]
+    return d
 
 
 @router.get("/")

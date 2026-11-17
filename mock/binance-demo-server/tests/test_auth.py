@@ -165,3 +165,14 @@ def test_reset_clears(monkeypatch):
     r = signed_get("/fapi/v1/commissionRate")
     assert r.status_code == 200
 
+
+def signed_post(path: str, body: dict, secret: str = SECRET, key: str | None = "mock-key"):
+    params = {k: str(v) for k, v in body.items()}
+    params["timestamp"] = str(state.now_ms())
+    params["recvWindow"] = "5000"
+    qs = "&".join(f"{k}={v}" for k, v in params.items())
+    full = f"{qs}&signature={_sig(secret, qs)}"
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    if key:
+        headers["X-MBX-APIKEY"] = key
+    return client.post(f"{path}?{full}", headers=headers)
