@@ -89,6 +89,12 @@ class StreamHub:
         try:
             while True:
                 payload = await client.queue.get()
+                if payload is None:  # sentinel: yeu cau dong tu chinh task nay
+                    try:
+                        await client.ws.close(code=4001, reason="mock ws drop")
+                    except Exception:  # pragma: no cover
+                        pass
+                    return
                 await client.ws.send_json(payload)
         except (asyncio.CancelledError, RuntimeError):
             pass
@@ -103,6 +109,20 @@ class StreamHub:
                 c.queue.put_nowait(payload)
             except asyncio.QueueFull:  # pragma: no cover
                 self._detach(c)
+
+    async def drop_all(self, code: int = 4001, reason: str = "mock ws drop") -> int:
+        """Cat moi ket noi WS hien tai. KHONG xoa listenKey.
+
+        Gui sentinel vao hang doi de chinh task sender dong socket — dong tu task
+        khac (HTTP handler) khong day duoc close frame tren Starlette.
+        """
+        clients = list(self._clients)
+        for c in clients:
+            try:
+                c.queue.put_nowait(None)
+            except asyncio.QueueFull:  # pragma: no cover
+                pass
+        return len(clients)
 
     # ------------------------------------------------------------ debug
 

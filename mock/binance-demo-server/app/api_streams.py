@@ -53,3 +53,10 @@ async def ws_user_stream_private(ws: WebSocket, listen_key: str) -> None:
 @router.get("/_debug/streams")
 async def debug_streams() -> dict:
     return HUB.snapshot()
+
+
+@router.post("/_admin/ws/drop")
+async def admin_ws_drop() -> dict:
+    """Cat WS nhung giu listenKey hop le (test reconnect)."""
+    n = await HUB.drop_all()
+    return {"dropped": n, "listen_keys_still_valid": HUB.snapshot()["keys"]}

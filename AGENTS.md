@@ -151,7 +151,35 @@ ssh -L 8080:localhost:8080 bot@<vps-ip>
 
 Windows: dùng **WSL2**. Không bind-mount từ `F:\` cho SQLite (chậm + khoá file).
 
-Script PowerShell: máy dev **chưa có `pwsh` 7**, chỉ có Windows PowerShell 5.1 → script phải chạy được trên 5.1. Lưu file **UTF-8 có BOM** (5.1 đọc UTF-8 không BOM sẽ lỗi dấu tiếng Việt) và đặt `[Console]::OutputEncoding = [Text.Encoding]::UTF8` ở đầu script.
+**Compose:** một `docker-compose.yml`, service `binance-demo-server` luôn chạy; `engine`/`dashboard` đặt sau `profiles: ["app"]`.
+`docker compose up -d` = chỉ mock · `docker compose --profile app up -d` = cả hệ.
+Trong container, engine gọi mock bằng **hostname `binance-demo-server:8080`** — `127.0.0.1:8081` chỉ là cổng debug map ra host, **không** dùng trong config container.
+
+### 6.1 Script PowerShell — luật bắt buộc
+
+Máy dev **không có `pwsh` 7**, chỉ có **Windows PowerShell 5.1**. Mọi script phải chạy được trên 5.1:
+
+1. **Không gọi `pwsh`.** Dùng `powershell -NoProfile -ExecutionPolicy Bypass -File ...`. Nếu script tự nâng quyền, chọn exe theo mẫu:
+   ```powershell
+   $exe = if (Get-Command pwsh -ErrorAction SilentlyContinue) { "pwsh" } else { "powershell.exe" }
+   ```
+2. **Lưu file UTF-8 CÓ BOM.** 5.1 đọc UTF-8 không BOM sẽ lỗi dấu tiếng Việt. Sau khi tạo/sửa bằng công cụ khác, chuẩn hoá lại:
+   ```powershell
+   $c = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)
+   [System.IO.File]::WriteAllText($p, $c, (New-Object System.Text.UTF8Encoding($true)))
+   ```
+3. **Đặt encoding ở đầu script** để `Write-Host` hiện đúng dấu:
+   ```powershell
+   try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+   ```
+4. **`"$var:"` là lỗi cú pháp** (`:` bị hiểu là scope). Luôn dùng **`"${var}:"`** khi biến đứng trước dấu hai chấm.
+5. **Không dùng cú pháp chỉ có ở PS 7**: `??`, `?.`, `-Parallel`, ternary `? :`, `Get-Content -AsByteStream`.
+6. **Kiểm tra cú pháp trước khi commit** (rẻ hơn sửa sau):
+   ```powershell
+   $e=$null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $p),[ref]$null,[ref]$e); $e.Count
+   ```
+7. **Không nhúng tiếng Việt vào chuỗi heredoc qua `-replace` của shell** — dễ hỏng dấu; dùng công cụ `edit`/`write` thay vì sed/replace từ PowerShell.
+8. **Mọi thông báo output bằng tiếng Việt có dấu**, đúng chính tả, không viết tắt; giữ tên lệnh/kỹ thuật bằng tiếng Anh.
 
 ---
 
@@ -230,6 +258,54 @@ Khi làm `mock/binance-demo-server/`:
 - Chi phí: VPS 0 USD, Telegram 0 USD, AI gate (phase 2) 2–7 USD/tháng.
 - AI gate (phase 2) dùng **GLM 5.3 Flash** (triage) + **DeepSeek V4 Flash 0731** (reasoner) qua OpenRouter. AI chỉ được **giảm size hoặc veto**, không bao giờ là trigger.
 - Demo Trading Binance có thể hỏng ở khâu tạo API key → ưu tiên phát triển trên `binance-demo-server`; live chỉ sau live smoke test ≤ 0.05 USD.
+- Chế độ dữ liệu thị trường: **dev/paper = `proxy`** (cần internet, giá thật) · **CI = `replay`** (offline, tất định) · **test crash = `synthetic`**. Không dùng `replay` để đánh giá hành vi dài hạn (thị trường lặp y nguyên), không dùng `synthetic` để đánh giá chiến lược.
+
+---
+
+## 13. Knowledge graph (graphify)
+
+Repo này dùng skill **graphify** để tra cứu cấu trúc mã nguồn thay vì đọc từng file.
+
+### 13.1 Phạm vi
+
+Graphify chạy trên **mã nguồn**, không chạy trên toàn repo:
+
+```
+mock/binance-demo-server/      ← chạy graphify ở đây
+```
+
+Lý do: thư mục này là **code-only** → chỉ AST, **không cần LLM, không tốn token, không cần API key**. Thư mục `docs/` là văn xuôi tiếng Việt, grep trực tiếp rẻ hơn nhiều.
+
+### 13.2 Lệnh
+
+```text
+/graphify mock/binance-demo-server          # build lần đầu (AST, miễn phí)
+/graphify mock/binance-demo-server --update # sau khi thêm/xoá file
+/graphify query "SL được đặt ở đâu?" --budget 1500
+/graphify path "Engine.place" "apply_fill"
+/graphify explain "AlgoEngine"
+```
+
+Khi `graphify-out/graph.json` đã tồn tại và câu hỏi là về codebase → **query luôn**, không build lại.
+
+### 13.3 Luật
+
+1. `graphify-out/` là **artifact sinh tự động** — đã nằm trong `.gitignore`. **Không commit, không sửa tay.**
+2. Chạy `--update` sau khi **thêm/xoá file** hoặc đổi cấu trúc module (không cần cho mỗi lần sửa logic).
+3. **Không bao giờ** trỏ graphify vào `.env`, `mock/fixtures/raw/`, `data/`, `backups/`.
+4. Graph là **bản đồ, không phải nguồn sự thật**: khi graph và code khác nhau, **code thắng** — báo lại nếu lệch.
+5. Nếu `graphify-out/graph.json` bị xoá, cứ build lại; không coi đó là mất dữ liệu.
+6. Trả lời câu hỏi về code phải **trích `source_location`** (file:line) lấy từ graph hoặc từ code, không nói chung chung.
+
+### 13.4 Khi nào dùng gì
+
+| Câu hỏi | Công cụ |
+|---|---|
+| "Hàm X gọi gì", "SL được đặt ở đâu", "luồng dữ liệu đi thế nào" | `graphify query` |
+| "Đường đi từ A tới B", "cái này ảnh hưởng module nào" | `graphify path` |
+| "Module này làm gì" (tổng quan) | `graphify explain` |
+| "Quy tắc risk là gì", "tại sao chọn 0.5%", "phase nào làm gì" | grep/đọc `docs/*.md` |
+| "Cấu hình hiện tại" | `config/`, `.env.example`, `docker-compose.yml` |
 
 ---
 

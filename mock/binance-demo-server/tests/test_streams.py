@@ -113,3 +113,22 @@ def test_ws_ordering_is_sequential(price):
     assert f1["e"] == "ORDER_TRADE_UPDATE"
     assert f2["E"] >= f1["E"]
 
+
+def test_admin_ws_drop_keeps_listenkey(price):
+    """Mat WS nhung REST van song: listenKey phai con hieu luc de reconnect."""
+    price("100000")
+    key = new_key()
+    with client.websocket_connect(f"/ws/{key}") as ws:
+        signed_post("/fapi/v1/order", {
+            "symbol": "BTCUSDT", "side": "BUY", "type": "MARKET", "quantity": "0.002"})
+        ws.receive_json()                      # dam bao da ket noi
+        r = client.post("/_admin/ws/drop").json()
+        assert r["dropped"] == 1
+    assert HUB.is_valid(key)                   # key KHONG bi xoa
+    assert HUB.snapshot()["clients"] == 0
+    # reconnect bang key cu phai thanh cong
+    with client.websocket_connect(f"/ws/{key}") as ws2:
+        signed_post("/fapi/v1/order", {
+            "symbol": "BTCUSDT", "side": "SELL", "type": "MARKET", "quantity": "0.002"})
+        got = ws2.receive_json()
+    assert got["e"] == "ORDER_TRADE_UPDATE"

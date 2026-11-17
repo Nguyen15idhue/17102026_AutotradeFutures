@@ -1,8 +1,16 @@
 # Mock Binance USDⓈ-M Futures — dùng cho dev/test offline.
+#
+# Quy ước (xem AGENTS.md):
+#   docker compose up -d                          -> chỉ mock (dev, CI)
+#   docker compose --profile app up -d            -> mock + engine + dashboard
+#
 # KHÔNG dùng env_file: .env ở đây: file đó chứa secret Binance thật và mock không cần.
+# Engine/dashboard sẽ dùng hostname nội bộ `binance-demo-server:8080`
+# (KHÔNG phải 127.0.0.1:8081 — đó chỉ là cổng debug map ra host).
 
 services:
   binance-demo-server:
+    # Không khai báo `profiles` => luôn chạy, ở cả chế độ mặc định và `--profile app`.
     build: ./mock/binance-demo-server
     container_name: binance-demo-server
     environment:
@@ -42,6 +50,40 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+# ---------------------------------------------------------------------------
+# Phase 1+ : bật bằng --profile app. Chưa implement nên để dạng tham chiếu.
+#
+#  engine:
+#    profiles: ["app"]
+#    build: ./engine
+#    env_file: .env
+#    environment:
+#      TZ: UTC
+#      BINANCE_BASE_URL: http://binance-demo-server:8080
+#      BINANCE_WS_URL: ws://binance-demo-server:8080/ws
+#    volumes:
+#      - botdata:/app/data
+#      - ./config:/app/config:ro
+#    depends_on:
+#      binance-demo-server:
+#        condition: service_healthy
+#
+#  dashboard:
+#    profiles: ["app"]
+#    build: ./dashboard
+#    environment:
+#      TZ: UTC
+#      DB_PATH: /app/data/bot.db
+#    volumes:
+#      - botdata:/app/data
+#    ports:
+#      - "127.0.0.1:8080:8080"
+#    read_only: true
+#
+# volumes:
+#   botdata:
+# ---------------------------------------------------------------------------
 
 volumes:
   mockdata:
