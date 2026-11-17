@@ -80,3 +80,6 @@ graphify-out/
 # Soak report cuc bo (cho VPS, khong commit)
 soak-report.json
 
+
+soak-status.json
+

@@ -83,6 +83,30 @@ services:
     tmpfs:
       - /tmp
 
+  # P1.1.1: soak 72h. Chay: mock + soak (KHONG chay engine de tranh HALT oan).
+  soak:
+    profiles: ["app"]
+    build: ./engine
+    container_name: bot-soak
+    command: ["python", "-m", "app.soak",
+              "--minutes", "4320", "--cycles", "25", "--drops", "5",
+              "--report", "/app/data/soak-report.json",
+              "--status", "/app/data/soak-status.json"]
+    environment:
+      TZ: UTC
+      SOAK_BASE_URL: http://binance-demo-server:8080
+      SOAK_COMMIT: ""
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID:-}
+    volumes:
+      - botdata:/app/data
+    depends_on:
+      binance-demo-server:
+        condition: service_healthy
+    restart: "no"
+    init: true
+
 volumes:
   mockdata:
   botdata:

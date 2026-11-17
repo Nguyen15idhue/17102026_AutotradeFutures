@@ -71,6 +71,7 @@ class Reconciler:
         if diffs:
             self.diff_count += diffs
             now = int(time.time() * 1000)
+            was_halted = self.halted()
             self._con.execute(
                 "INSERT INTO incidents(kind,detail,ts_ms) VALUES(?,?,?)",
                 ("RECONCILE_DIFF", "diff=%d" % diffs, now),
@@ -78,7 +79,8 @@ class Reconciler:
             if self._halt_on_diff:
                 set_state(self._con, "halted", "1", now)
                 log("error", "reconcile.halt", diff=diffs)
-                if self._alerter:
+                # chi alert o canh len (0->1) de khong spam moi vong 5s
+                if not was_halted and self._alerter:
                     self._alerter.push("halt", "HALT: reconcile lech %d" % diffs)
                     self._alerter.flush()
         return diffs

@@ -1,4 +1,4 @@
-param(
+﻿param(
   [ValidateSet("Local", "Vps")][string]$Target = "Local",
   [int]$Minutes = 10,
   [int]$Cycles = 3,
