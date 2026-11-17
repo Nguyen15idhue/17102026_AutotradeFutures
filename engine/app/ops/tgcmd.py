@@ -79,11 +79,57 @@ def _ok(v) -> str:
     return "OK" if v else ("CHƯA" if v is None else "FAIL")
 
 
-def _send(token: str, chat_id: str, text: str) -> dict:
-    data = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode()
+def _esc(s: str) -> str:
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def format_status_html(rep: dict) -> str:
+    """Bang monospace cho Telegram (parse_mode=HTML). Telegram khong render <table>."""
+    st = str(rep.get("state", "pending"))
+    title = "Soak 72h: %s" % STATE_VI.get(st, st.upper())
+    if st == "running":
+        t0, dl = rep.get("t0", 0), rep.get("deadline", 0)
+        now = int(time.time() * 1000)
+        el_h = max(0.0, (now - t0) / 3600000.0)
+        left_h = max(0.0, (dl - now) / 3600000.0)
+        title += " — %.1fh / còn ~%.1fh" % (el_h, left_h)
+    if st == "done":
+        title += " — %s" % ("ĐẠT" if rep.get("pass") else "CHƯA ĐẠT")
+    if st == "error":
+        errs = rep.get("errors", [])
+        title += " — %s" % (errs[-1] if errs else "không rõ")
+    fin = rep.get("final", {})
+    rows = [
+        ("Vòng", "%s/%s" % (rep.get("cycles", 0), rep.get("planned_cycles", "?"))),
+        ("Orphan", str(rep.get("orphans", 0))),
+        ("Reconcile diff", str(rep.get("reconcile_diffs", 0))),
+        ("WS drop/recon", "%s/%s" % (rep.get("ws_drops", 0), rep.get("reconnect_ok", 0))),
+        ("Trùng ID", _ok(rep.get("dup_ok"))),
+        ("Chaos backoff", _ok(rep.get("chaos_backoff_ok"))),
+        ("Restart", _ok(rep.get("restart_ok"))),
+    ]
+    if fin:
+        rows.append(
+            (
+                "Cuối kỳ",
+                "orders=%s algo=%s pos=%s"
+                % (fin.get("openOrders"), fin.get("openAlgo"), fin.get("positions")),
+            )
+        )
+    errs = rep.get("errors", [])
+    rows.append(("Lỗi", errs[-1] if errs else "không"))
+    width = max(len(k) for k, _ in rows)
+    body = "\n".join("%-*s : %s" % (width, k, v) for k, v in rows)
+    return "<b>%s</b>\n<pre>%s</pre>" % (_esc(title), _esc(body))
+
+
+def _send(token: str, chat_id: str, text: str, parse_mode: str = "") -> dict:
+    data = {"chat_id": chat_id, "text": text}
+    if parse_mode:
+        data["parse_mode"] = parse_mode
     req = urllib.request.Request(
         "https://api.telegram.org/bot" + token + "/sendMessage",
-        data=data,
+        data=urllib.parse.urlencode(data).encode(),
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     with urllib.request.urlopen(req, timeout=15) as r:
@@ -164,7 +210,11 @@ class CommandPoller:
         if now - self._last_reply < REPLY_MIN_INTERVAL_S:
             return False
         try:
-            self._sender(self._token, self._chat, format_status_vi(self._status_fn()))
+            html = format_status_html(self._status_fn())
+            try:
+                self._sender(self._token, self._chat, html, parse_mode="HTML")
+            except TypeError:
+                self._sender(self._token, self._chat, html)
             self._last_reply = now
             return True
         except Exception:

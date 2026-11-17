@@ -86,6 +86,13 @@ def _poller(monkey=None, chat="-5456437520"):
     return p, sent
 
 
+def test_format_html_pending_shows_chua():
+    from app.ops.tgcmd import format_status_html
+
+    txt = format_status_html(blank_report())
+    assert "<b>" in txt and "<pre>" in txt and "CHƯA" in txt
+
+
 def test_poller_answers_once_then_ratelimit():
     p, sent = _poller()
     assert (
@@ -94,7 +101,7 @@ def test_poller_answers_once_then_ratelimit():
         )
         is True
     )
-    assert len(sent) == 1 and "ĐANG THỰC HIỆN" in sent[0]
+    assert len(sent) == 1 and "<pre>" in sent[0] and "ĐANG THỰC HIỆN" in sent[0]
     # ngay lap tuc goi lai -> rate limit, khong gui
     assert (
         p.handle_update(
