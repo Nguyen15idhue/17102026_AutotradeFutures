@@ -51,39 +51,38 @@ services:
       retries: 3
       start_period: 10s
 
-# ---------------------------------------------------------------------------
-# Phase 1+ : bật bằng --profile app. Chưa implement nên để dạng tham chiếu.
-#
-#  engine:
-#    profiles: ["app"]
-#    build: ./engine
-#    env_file: .env
-#    environment:
-#      TZ: UTC
-#      BINANCE_BASE_URL: http://binance-demo-server:8080
-#      BINANCE_WS_URL: ws://binance-demo-server:8080/ws
-#    volumes:
-#      - botdata:/app/data
-#      - ./config:/app/config:ro
-#    depends_on:
-#      binance-demo-server:
-#        condition: service_healthy
-#
-#  dashboard:
-#    profiles: ["app"]
-#    build: ./dashboard
-#    environment:
-#      TZ: UTC
-#      DB_PATH: /app/data/bot.db
-#    volumes:
-#      - botdata:/app/data
-#    ports:
-#      - "127.0.0.1:8080:8080"
-#    read_only: true
-#
-# volumes:
-#   botdata:
-# ---------------------------------------------------------------------------
+  # Phase 1 (P1.0 skeleton): chay bang --profile app. Local only, chua VPS.
+  engine:
+    profiles: ["app"]
+    build: ./engine
+    container_name: bot-engine
+    environment:
+      TZ: UTC
+      BINANCE_BASE_URL: http://binance-demo-server:8080
+      BINANCE_WS_URL: ws://binance-demo-server:8080/ws
+    volumes:
+      - botdata:/app/data
+    depends_on:
+      binance-demo-server:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+
+  dashboard:
+    profiles: ["app"]
+    build: ./dashboard
+    container_name: bot-dashboard
+    environment:
+      TZ: UTC
+      DB_PATH: /app/data/bot.db
+    volumes:
+      - botdata:/app/data:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
 
 volumes:
   mockdata:
+  botdata:

@@ -110,8 +110,8 @@ Trước khi viết dòng code nào, bạn phải chứng minh **những thứ t
 | 13 mục xác minh | ✅ Xong (mock) | `docs/verification.md` §6, 16/16 PASS 17/11/2026 | 17/11/2026 |
 | Mock API key | ✅ | secret mock mặc định (`mock-secret`), key `verify-key` — không dùng key live | 17/11/2026 |
 | Live sub-account (chưa nạp tiền) | ✅ | key an toàn (`enableWithdrawals=false`), balance 4,85 USDT — xem `verification.md` §3 | 17/11/2026 |
-| Docker skeleton healthy | ⬜ Chưa | | |
-| `.env` + `.env.example` | ⬜ Chưa | | |
+| Docker skeleton healthy | ✅ | `docker compose --profile app ps` = 3 healthy (mock+engine+dashboard) local 17/11/2026 | 17/11/2026 |
+| `.env` + `.env.example` | ✅ | `.gitignore` che `.env`; image engine không chứa `.env`; history không có secret | 17/11/2026 |
 
 ### Ghi chú
 
