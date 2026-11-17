@@ -166,7 +166,7 @@ Reconcile là phần quan trọng nhất: bot giữ state trong SQLite, sàn gi�
 | WS market + user | ✅ | user stream trên mock (`listenKey` + reconnect + renew); market URL đúng format Binance, test bằng stub local (mock không có market WS) | 17/11/2026 |
 | Order state machine | ✅ | `engine/app/exchange/orders.py`: id `{strategy}-{symbol}-{ts}-{nonce}`, dedup, SL qua `/fapi/v1/algoOrder` | 17/11/2026 |
 | Reconcile 5s | ✅ | `engine/app/exchange/reconcile.py`: lệch → HALT + incident + alert, không tự sửa (đã chứng minh trong container) | 17/11/2026 |
-| 72h mock 0 orphan | ⬜ Chờ SSH VPS | harness `scripts/py/soak_runner.py` sẵn sàng; smoke local 3 vòng **pass** (0 orphan, diff 0, dup/chaos/restart/drop OK) | |
+| 72h mock 0 orphan | 🟡 Đang chạy trên VPS | soak service commit 6b223a5, state=running (xem `/check72h` / `soak-status.json`), xong mới tick ✅ | |
 
 ### Ghi chú
 
