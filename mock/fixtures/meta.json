@@ -1,0 +1,21 @@
+{
+  "source": "https://fapi.binance.com",
+  "fetched_at_ms": 1794916936538,
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "AVAXUSDT",
+    "LINKUSDT",
+    "SUIUSDT"
+  ],
+  "intervals": {
+    "15m": 500,
+    "1m": 300
+  },
+  "note": "Snapshot that tu Binance public API, dung cho MARKET_MODE=replay"
+}

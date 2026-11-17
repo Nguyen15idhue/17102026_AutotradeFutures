@@ -1,0 +1,313 @@
+{
+  "_meta": {
+    "purpose": "Hop dong response cua Binance USDM-Futures. Tier A = ten field/kieu khong duoc doi.",
+    "source": "developers.binance.com (legacy-docs mirror) + probe that tren fapi.binance.com ngay 17/11/2026",
+    "bundled": "Gop 1 file thay vi 1 file/endpoint de test harness load 1 lan (ghi chu trong docs/phase0-binance-demo-server.md M0.1)"
+  },
+
+  "auth": {
+    "apiKey_example": "dbefbc809e3e83c283a984c3a1459732ea7db1360ca80c5c2c8867408d28cc83",
+    "secret_example": "2b5eb11e18796d12d88f13dc27dbbd02c2cc51ff7059765ed9821957d82bb4d9",
+    "payload": "symbol=BTCUSDT&side=BUY&type=LIMIT&quantity=1&price=9000&timeInForce=GTC&recvWindow=5000&timestamp=1591702613943",
+    "signature_hex": "3c661234138461fcc7a7d8746c6558c9842d4e10870d2ecbedf7777cad694af9"
+  },
+
+  "error": { "code": -1121, "msg": "Invalid symbol." },
+
+  "time": { "serverTime": 1735689600000 },
+
+  "listenKey": { "listenKey": "pqia91ma19a5s61cv6a81va65sdf19v8a65a1a5s61cv6a81va65sdf19v8a65a1" },
+
+  "balance": [
+    {
+      "accountAlias": "SgsR",
+      "asset": "USDT",
+      "balance": "5000.00000000",
+      "crossWalletBalance": "5000.00000000",
+      "crossUnPnl": "0.00000000",
+      "availableBalance": "5000.00000000",
+      "maxWithdrawAmount": "5000.00000000",
+      "marginAvailable": true,
+      "updateTime": 0
+    }
+  ],
+
+  "account": {
+    "feeTier": 0,
+    "canTrade": true,
+    "canDeposit": true,
+    "canWithdraw": true,
+    "updateTime": 0,
+    "multiAssetsMargin": false,
+    "tradeGroupId": -1,
+    "totalInitialMargin": "0.00000000",
+    "totalMaintMargin": "0.00000000",
+    "totalWalletBalance": "5000.00000000",
+    "totalUnrealizedProfit": "0.00000000",
+    "totalMarginBalance": "5000.00000000",
+    "totalPositionInitialMargin": "0.00000000",
+    "totalOpenOrderInitialMargin": "0.00000000",
+    "totalCrossWalletBalance": "5000.00000000",
+    "totalCrossUnPnl": "0.00000000",
+    "availableBalance": "5000.00000000",
+    "maxWithdrawAmount": "5000.00000000",
+    "assets": [
+      {
+        "asset": "USDT",
+        "walletBalance": "5000.00000000",
+        "unrealizedProfit": "0.00000000",
+        "marginBalance": "5000.00000000",
+        "maintMargin": "0.00000000",
+        "initialMargin": "0.00000000",
+        "positionInitialMargin": "0.00000000",
+        "openOrderInitialMargin": "0.00000000",
+        "crossWalletBalance": "5000.00000000",
+        "crossUnPnl": "0.00000000",
+        "availableBalance": "5000.00000000",
+        "maxWithdrawAmount": "5000.00000000",
+        "marginAvailable": true,
+        "updateTime": 0
+      }
+    ],
+    "positions": []
+  },
+
+  "positionRisk": [
+    {
+      "symbol": "BTCUSDT",
+      "positionAmt": "0.001",
+      "entryPrice": "65000.0",
+      "markPrice": "65100.00000000",
+      "unRealizedProfit": "0.10000000",
+      "liquidationPrice": "43355.01234567",
+      "leverage": "3",
+      "maxQty": "1000",
+      "marginType": "isolated",
+      "isolatedMargin": "21.66666666",
+      "isAutoAddMargin": "false",
+      "positionSide": "BOTH",
+      "notional": "65.10000000",
+      "isolatedWallet": "21.65000000",
+      "updateTime": 0,
+      "breakEvenPrice": "65013.00000000"
+    }
+  ],
+
+  "commissionRate": {
+    "symbol": "BTCUSDT",
+    "makerCommissionRate": "0.000200",
+    "takerCommissionRate": "0.000500"
+  },
+
+  "leverageBracket": [
+    {
+      "symbol": "BTCUSDT",
+      "brackets": [
+        {
+          "bracket": 1,
+          "initialLeverage": 150,
+          "notionalCap": 50000,
+          "notionalFloor": 0,
+          "maintMarginRatio": 0.004,
+          "cum": 0.0
+        }
+      ]
+    }
+  ],
+
+  "order": {
+    "orderId": 3250781813,
+    "symbol": "BTCUSDT",
+    "status": "NEW",
+    "clientOrderId": "mr-BTCUSDT-1735689600123-7f3a",
+    "price": "65000.00",
+    "avgPrice": "0.00000",
+    "origQty": "0.001",
+    "executedQty": "0",
+    "cumQty": "0",
+    "cumQuote": "0",
+    "timeInForce": "GTX",
+    "type": "LIMIT",
+    "reduceOnly": false,
+    "closePosition": false,
+    "side": "BUY",
+    "positionSide": "BOTH",
+    "stopPrice": "0",
+    "workingType": "CONTRACT_PRICE",
+    "priceProtect": false,
+    "origType": "LIMIT",
+    "priceMatch": "NONE",
+    "selfTradePreventionMode": "NONE",
+    "goodTillDate": 0,
+    "time": 1735689600123,
+    "updateTime": 1735689600123
+  },
+
+  "algoOrder": {
+    "algoId": 2146760,
+    "clientAlgoId": "sl-BTCUSDT-1735689601000-9c1b",
+    "algoType": "CONDITIONAL",
+    "orderType": "STOP_MARKET",
+    "symbol": "BTCUSDT",
+    "side": "SELL",
+    "positionSide": "BOTH",
+    "timeInForce": "GTC",
+    "quantity": "0",
+    "algoStatus": "NEW",
+    "triggerPrice": "63700.0",
+    "price": "0",
+    "icebergQuantity": null,
+    "selfTradePreventionMode": "NONE",
+    "workingType": "MARK_PRICE",
+    "priceMatch": "NONE",
+    "closePosition": true,
+    "priceProtect": true,
+    "reduceOnly": false,
+    "activatePrice": "",
+    "callbackRate": "",
+    "createTime": 1735689601000,
+    "updateTime": 1735689601000,
+    "triggerTime": 0,
+    "goodTillDate": 0
+  },
+
+  "openAlgoOrders": {
+    "total": 1,
+    "orders": []
+  },
+
+  "openOrders": [],
+
+  "income": [
+    {
+      "symbol": "BTCUSDT",
+      "incomeType": "REALIZED_PNL",
+      "income": "0.05000000",
+      "asset": "USDT",
+      "info": "",
+      "time": 1735689600000,
+      "tranId": 123456789,
+      "tradeId": "987654321"
+    }
+  ],
+
+  "events": {
+    "ORDER_TRADE_UPDATE": {
+      "e": "ORDER_TRADE_UPDATE",
+      "T": 1735689600123,
+      "E": 1735689600130,
+      "o": {
+        "s": "BTCUSDT",
+        "c": "mr-BTCUSDT-1735689600123-7f3a",
+        "S": "BUY",
+        "o": "LIMIT",
+        "f": "GTX",
+        "q": "0.001",
+        "p": "65000.00",
+        "ap": "0.00000",
+        "sp": "0.00000",
+        "x": "NEW",
+        "X": "NEW",
+        "i": 3250781813,
+        "l": "0",
+        "z": "0",
+        "L": "0",
+        "n": "0",
+        "N": "USDT",
+        "T": 1735689600123,
+        "t": 0,
+        "b": "0",
+        "a": "0",
+        "m": false,
+        "R": false,
+        "wt": "CONTRACT_PRICE",
+        "ot": "LIMIT",
+        "ps": "BOTH",
+        "cp": false,
+        "AP": "0",
+        "cr": "0",
+        "rp": "0",
+        "pP": false,
+        "si": 0,
+        "ss": 0,
+        "V": "NONE",
+        "pm": "NONE",
+        "gtd": 0
+      }
+    },
+    "ALGO_UPDATE": {
+      "e": "ALGO_UPDATE",
+      "T": 1735689601000,
+      "E": 1735689601005,
+      "o": {
+        "caid": "sl-BTCUSDT-1735689601000-9c1b",
+        "aid": 2146760,
+        "at": "CONDITIONAL",
+        "o": "STOP_MARKET",
+        "s": "BTCUSDT",
+        "S": "SELL",
+        "ps": "BOTH",
+        "f": "GTC",
+        "q": "0",
+        "X": "NEW",
+        "ai": "",
+        "ap": "0.00000",
+        "aq": "0.00000",
+        "act": "0",
+        "tp": "63700.0",
+        "p": "0",
+        "V": "NONE",
+        "wt": "MARK_PRICE",
+        "pm": "NONE",
+        "cp": true,
+        "pP": true,
+        "R": false,
+        "tt": 0,
+        "gtd": 0,
+        "rm": "",
+        "ia": false
+      }
+    },
+    "ACCOUNT_UPDATE": {
+      "e": "ACCOUNT_UPDATE",
+      "T": 1735689600123,
+      "E": 1735689600131,
+      "a": {
+        "m": "ORDER",
+        "B": [{ "a": "USDT", "wb": "5000.00000000", "cw": "5000.00000000", "bc": "0" }],
+        "P": [
+          {
+            "s": "BTCUSDT",
+            "pa": "0.001",
+            "ep": "65000.00",
+            "up": "0.00000000",
+            "mt": "isolated",
+            "iw": "21.66666666",
+            "ps": "BOTH"
+          }
+        ]
+      }
+    },
+    "MARGIN_CALL": {
+      "e": "MARGIN_CALL",
+      "E": 1735689600131,
+      "cw": "4.84855248",
+      "p": [
+        {
+          "s": "BTCUSDT",
+          "pa": "0.001",
+          "mt": "isolated",
+          "iw": "21.66",
+          "mp": "43355.01234567",
+          "up": "-0.5",
+          "mm": "0.26"
+        }
+      ]
+    },
+    "listenKeyExpired": {
+      "e": "listenKeyExpired",
+      "E": 1735689600131,
+      "listenKey": "pqia91ma19a5s61cv6a81va65sdf19v8a65a1a5s61cv6a81va65sdf19v8a65a1"
+    }
+  }
+}

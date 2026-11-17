@@ -295,23 +295,27 @@ Trước khi viết server, freeze lại "hợp đồng": mỗi endpoint trả J
 
 ### Checklist test
 
-- [ ] Mỗi endpoint P0 có 1 file contract JSON
-- [ ] `exchangeInfo.json` parse được, đủ 10 symbol
-- [ ] Golden signature vector chạy ra đúng hash đã ghi
-- [ ] Có README phân Tier A/B/C
+- [x] Mỗi endpoint P0 có 1 file contract JSON
+- [x] `exchangeInfo.json` parse được, đủ 10 symbol
+- [x] Golden signature vector chạy ra đúng hash đã ghi
+- [x] Có README phân Tier A/B/C
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| Contracts frozen | ⬜ Chưa | | |
-| exchangeInfo snapshot | ⬜ Chưa | | |
-| Golden vector | ⬜ Chưa | | |
+| Contracts frozen | ✅ | `mock/contracts/contracts.json` (~10KB): auth, account, balance, positionRisk, order, algoOrder, events WS | 17/11/2026 |
+| exchangeInfo snapshot | ✅ | `mock/fixtures/exchangeInfo.json` — 10 symbol, 12.455 bytes, tải từ `fapi.binance.com` | 17/11/2026 |
+| Klines thật | ✅ | `mock/fixtures/klines.json` — 15m×500 + 1m×300 ×10 symbol, 1.048.912 bytes | 17/11/2026 |
+| Golden vector | ✅ | tính lại bằng `hmac` → `3c661234...694af9` khớp tài liệu | 17/11/2026 |
+| README Tier A/B/C | ✅ | `mock/contracts/README.md` | 17/11/2026 |
 
 ### Ghi chú
 
+- **Lệch spec:** gộp thành 1 file `contracts.json` thay vì 1 file/endpoint — test harness load 1 lần, ít file rác hơn. Đã ghi trong `_meta` của file.
 - Field Tier A đổi tên = engine phải sửa → coi như breaking change, ghi vào changelog của mock.
 - Đừng lấy `exchangeInfo` từ trí nhớ; tick/step là thứ sẽ gây `-4014`/`-4023`/`-4164` khó hiểu nhất.
+- Fixture là **dữ liệu thật** tải ngày 17/11/2026, dùng lại được offline cho `MARKET_MODE=replay`.
 
 ---
 
