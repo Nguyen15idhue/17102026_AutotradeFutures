@@ -59,7 +59,7 @@ BINANCE_WS_URL=ws://binance-demo-server:8080/ws
 
 **User stream**: `POST/PUT/DELETE /fapi/v1/listenKey` · WS `/ws/<listenKey>` và `/private/ws/<listenKey>`
 
-**Admin (chỉ dùng cho test)**: `POST /_admin/chaos` · `POST /_admin/reset` · `GET /_admin/state` · `POST /_admin/snapshot` · `POST /_admin/restore`
+**Admin (chỉ dùng cho test)**: `POST /_admin/chaos` · `POST /_admin/reset` · `GET /_admin/state` · `POST /_admin/snapshot` · `POST /_admin/restore` · **`POST /_admin/ws/drop`** (cắt WS, **giữ** listenKey để test reconnect)
 
 ## Ký request
 

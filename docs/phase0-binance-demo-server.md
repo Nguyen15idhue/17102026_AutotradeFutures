@@ -99,6 +99,13 @@ Docker Compose (cùng network)
 └── mockdata (volume)            → state + fixtures của mock
 ```
 
+`binance-demo-server` **không khai báo `profiles`** nên luôn chạy. `engine` + `dashboard` đặt sau `profiles: ["app"]`:
+
+```powershell
+docker compose up -d                    # chỉ mock (dev, CI)
+docker compose --profile app up -d      # mock + engine + dashboard
+```
+
 Ranh giới: engine **không biết** đây là mock. Đổi môi trường chỉ bằng 1 biến env, không sửa code.
 
 ### 1.2 Stack
@@ -750,9 +757,9 @@ Một mock "hoàn hảo" không bao giờ lỗi là mock vô dụng: bug xử l�
 - [x] `unknown_503` → 503 với đúng message "Unknown error, please check your request or try again later."
 - [x] `latency_ms` bơm được (đo ≥ 100ms với 120ms)
 - [x] `-1008` chặn lệnh thường, **miễn** reduce-only
+- [x] `POST /_admin/ws/drop` cắt WS, **giữ listenKey**, reconnect bằng key cũ chạy được
 - [x] `/fapi/v1/ping`, `/_admin`, `/_debug` không bị ảnh hưởng
 - [x] `POST /_admin/reset` tắt chaos ngay
-- [ ] `WS_DROP_EVERY` → chưa implement (để P1 khi có engine)
 - [ ] `-1021` bơm → engine sync clock (thuộc engine, P1)
 
 ### Kết quả đã đạt
@@ -762,6 +769,7 @@ Một mock "hoàn hảo" không bao giờ lỗi là mock vô dụng: bug xử l�
 | Chaos endpoint | ✅ | container: `/_admin/chaos` → `/_admin/reset` hoạt động | 17/11/2026 |
 | 503 unknown | ✅ | container: `503 Unknown error, please check your request or try again later.` | 17/11/2026 |
 | `-1008` exemption | ✅ | container: lệnh thường → `503 -1008`; test reduce-only → 200 | 17/11/2026 |
+| `ws/drop` | ✅ | container: `dropped=1`, WS đóng, `listenKey` vẫn hợp lệ, reconnect nhận event | 17/11/2026 |
 | Ping không bị ảnh hưởng | ✅ | container: ping 200 khi `fail_rate=1.0` | 17/11/2026 |
 | 84 test pass | ✅ | `pytest` xanh, `ruff` sạch | 17/11/2026 |
 
@@ -1037,7 +1045,7 @@ Song song: retry demo mỗi tuần; nếu hoạt động lại → 4 tuần demo
 | 4 | STOP/TP qua `/order` → `-4120`; qua `/algoOrder` → `algoId` | ✅ |
 | 5 | Đóng position → SL còn lại `EXPIRED` | ✅ |
 | 6 | Restart giữa lúc có position → state nguyên | ✅ hash `0d721a8b1d` trước/sau giống hệt |
-| 7 | Bơm lỗi 30% + WS drop → 0 double order | ⚠️ **một phần** — chaos có, WS drop chưa; "0 double order" cần engine |
+| 7 | Bơm lỗi 30% + WS drop → 0 double order | ✅ chaos + `POST /_admin/ws/drop` (cắt WS, giữ listenKey) đã có; "0 double order" vẫn cần engine để kiểm chứng đầy đủ |
 | 8 | Determinism: cùng seed → cùng state | ✅ `counts` giống; hash khác do `orderId` tăng (đúng thiết kế) |
 | 9 | `replay` chạy offline | ✅ CI + test không gọi internet |
 | 10 | Không secret trong image | ✅ Dockerfile chỉ `COPY app`, `.dockerignore` che `.env` |
