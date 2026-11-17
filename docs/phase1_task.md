@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.2 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.6
+Phiên bản: 1.3 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.6
 
 ---
 
@@ -184,6 +184,62 @@ Reconcile là phần quan trọng nhất: bot giữ state trong SQLite, sàn gi�
   (3) bắt buộc pass trước P1.7; (4) bài soak phải có traffic thật: ≥ 20–30 vòng mở/đóng lệnh,
   ≥ 5 lần drop WS + reconcile diff = 0, 1 lần restart giữa position, qua mốc renew listenKey 30 phút,
   1 lần inject 429, 1 lần gửi trùng `clientOrderId`; log RSS + WAL size mỗi giờ.
+  Chi tiết triển khai xem **P1.1.1** dưới đây (service soak riêng + `/check72h`).
+
+---
+
+## P1.1.1 — Deploy lên VPS + chạy soak 72h (sau P1.1, song song P1.2)
+
+### Giải thích cơ bản
+
+Soak 72h kiểm tra adapter bằng traffic thật trên mock, nhưng phải chạy trên VPS 24/7
+(máy dev Windows sleep/reboot giữa chừng thì kết quả vô giá trị). Soak chạy dưới dạng
+**service riêng** trong compose (`soak`, profile `app`), cùng compose với mock.
+Lúc soak **không chạy service engine** (reconcile của engine sẽ HALT oan vì position
+của soak — đã quan sát ở local, xem ghi chú P1.1).
+
+### Việc cần làm
+
+1. Đóng băng code `exchange/`: ghi commit sha đang soak vào bảng kết quả. Sửa adapter
+   trong lúc soak → chạy lại từ đầu.
+2. Trên VPS: `git pull` (repo đã clone), `docker compose --profile app up -d mock soak`.
+   Không cần key Binance; service soak lấy `TELEGRAM_*` từ `.env` ở runtime
+   (không bake vào image).
+3. Kiểm tra trạng thái bất cứ lúc nào bằng lệnh `/check72h` trong group Telegram
+   (hoặc `powershell -File scripts/ps/check72h.ps1 -Target Vps`).
+4. Hết 72h: lấy `soak-report.json` trên VPS về, ghi kết quả vào bảng P1.1.
+
+### Trạng thái soak (`/app/data/soak-status.json`, volume `botdata`)
+
+| State | Nghĩa |
+|---|---|
+| `pending` | Chưa bắt đầu (service vừa lên, đang flatten) |
+| `running` | Đang chạy (kèm deadline UTC + vòng hiện tại) |
+| `done` | Xong, `pass: true/false` + bảng số liệu |
+| `error` | Crash giữa chừng + thông điệp lỗi (không mất file status) |
+
+Bảng `/check72h` hiện: state, giờ đã chạy/còn lại, vòng x/y, orphan, reconcile diff,
+drop/reconnect, trùng ID, chaos backoff, restart, WAL size, lỗi cuối.
+
+### Tiêu chí xong
+
+`pass: true` = 0 orphan cuối kỳ + reconcile diff = 0 mọi vòng + dup/chaos/restart/drop
+đều OK + qua mốc renew listenKey 30 phút + ≥ 20–30 vòng lệnh. Thiếu 1 tiêu chí = fail,
+ghi log và chạy lại.
+
+### Dọn dẹp
+
+- Tay: `ssh VPS "rm /app/data/soak-*"` (đường dẫn trong volume `botdata`;
+  xem bằng `docker volume inspect <project>_botdata`).
+- Tự động: service soak khi khởi động xóa mọi file `soak-*` quá **7 ngày tuổi**.
+
+### Ngoại lệ kiến trúc đã duyệt (17/11/2026)
+
+- Kênh **inbound Telegram chỉ tồn tại trong service soak**, read-only, đúng 1 lệnh
+  `/check72h`, chỉ trả lời đúng chat ID đã cấu hình. Engine giao dịch giữ nguyên
+  outbound-only. Mở thêm lệnh Telegram khác = quyết định kiến trúc riêng, không tự ý.
+
+---
 
 ---
 
@@ -598,3 +654,4 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 | 17/11/2026 | 1.0 | Tạo mới, tách từ spec v1.6 |
 | 17/11/2026 | 1.1 | P1.1: chốt soak 72h chạy trên VPS, cho phép hoãn song song với P1.2 kèm 4 điều kiện + tiêu chí traffic tối thiểu |
 | 17/11/2026 | 1.2 | P1.8: bổ sung live smoke test ≤ 0,05 USD làm bước 0 bắt buộc + checklist + dòng kết quả |
+| 17/11/2026 | 1.3 | Thêm mục P1.1.1: soak là service compose riêng + `/check72h` + dọn sau 7 ngày; ghi ngoại lệ inbound Telegram read-only trong service soak |
