@@ -349,5 +349,41 @@ class Store:
                     h.update(repr(tuple(r)).encode())
         return h.hexdigest()
 
+    def counts(self) -> dict[str, int]:
+        with self.lock:
+            out = {}
+            for table in ("account", "positions", "orders", "algo_orders", "fills", "income", "events_log"):
+                out[table] = int(self.conn.execute(f"SELECT COUNT(*) c FROM {table}").fetchone()["c"])
+            return out
+
+    def snapshot_to(self, path: str) -> str:
+        """Ghi ban sao nhat quan ra file (dung VACUUM INTO, an toan khi dang chay)."""
+        import os
+        with self.lock:
+            if os.path.exists(path):
+                os.remove(path)
+            self.conn.execute("VACUUM INTO ?", (path,))
+            self.conn.commit()
+        return path
+
+    def restore_from(self, path: str) -> None:
+        """Khoi phuc tu file snapshot: dong ket noi, ghi de, mo lai."""
+        import os
+        import shutil
+        with self.lock:
+            if self.conn is not None:
+                self.conn.close()
+                self.conn = None
+            if self.path not in (":memory:", ""):
+                for suffix in ("", "-wal", "-shm"):
+                    p = self.path + suffix
+                    if os.path.exists(p):
+                        os.remove(p)
+                if os.path.exists(self.path) and os.path.abspath(path) == os.path.abspath(self.path):
+                    raise ValueError("snapshot trung voi db hien tai")
+                shutil.copyfile(path, self.path)
+            target = self.path if self.path not in ("", ":memory:") else path
+            self.init(target, __import__("decimal").Decimal("0"))
+
 
 STORE = Store()

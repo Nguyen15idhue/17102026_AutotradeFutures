@@ -26,7 +26,34 @@ async def admin_reset() -> dict:
 
 @router.get("/_admin/state")
 async def admin_state() -> dict:
-    return {"chaos": CHAOS.snapshot(), "limits": LIMITS.snapshot("127.0.0.1")}
+    from .store import STORE
+    return {
+        "chaos": CHAOS.snapshot(),
+        "limits": LIMITS.snapshot("127.0.0.1"),
+        "state_hash": STORE.state_hash(),
+        "counts": STORE.counts(),
+    }
+
+
+@router.post("/_admin/snapshot")
+async def admin_snapshot() -> dict:
+    from .config import CFG
+    from .store import STORE
+    path = CFG.db_path + ".snapshot"
+    STORE.snapshot_to(path)
+    return {"snapshot": path, "state_hash": STORE.state_hash(), "counts": STORE.counts()}
+
+
+@router.post("/_admin/restore")
+async def admin_restore() -> dict:
+    from .config import CFG
+    from .store import STORE
+    path = CFG.db_path + ".snapshot"
+    import os
+    if not os.path.exists(path):
+        return {"error": "khong co snapshot"}
+    STORE.restore_from(path)
+    return {"restored": path, "state_hash": STORE.state_hash(), "counts": STORE.counts()}
 
 
 @router.get("/fapi/v1/ping")

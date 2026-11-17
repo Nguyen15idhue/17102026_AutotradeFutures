@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  mock:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mock/binance-demo-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: mock/binance-demo-server/requirements.txt
+
+      - name: Cài phụ thuộc
+        run: pip install -r requirements.txt
+
+      - name: Ruff
+        run: ruff check app tests --output-format concise
+
+      - name: Pytest (offline, MARKET_MODE=replay)
+        env:
+          MARKET_MODE: replay
+          FIXTURES_DIR: ${{ github.workspace }}/mock/fixtures
+        run: pytest -q
+
+      - name: Kiểm tra contract fixtures tồn tại
+        run: |
+          test -f ../../mock/fixtures/exchangeInfo.json
+          test -f ../../mock/contracts/contracts.json
