@@ -631,29 +631,38 @@ SL/TP của hệ thống đi qua đây. Mock phải tái hiện đúng: tạo �
 
 ### Checklist test
 
-- [ ] Đặt STOP_MARKET closePosition → `algoId`, status NEW
-- [ ] Giá chạm trigger → position đóng, status FINISHED
-- [ ] TP_SELL khi giá ≥ trigger → khớp
-- [ ] STOP_BUY (short) khi giá ≥ trigger → khớp
-- [ ] Đóng position bằng tay → SL còn lại EXPIRED
-- [ ] `closePosition` + `quantity` → lỗi param
-- [ ] `priceProtect` + mark lệch xa → không trigger
-- [ ] `GET /openAlgoOrders` phản ánh đúng ngay sau mỗi thao tác
-- [ ] Restart → algo order còn nguyên
+- [x] Đặt STOP_MARKET closePosition → `algoId`, status NEW
+- [x] Giá chạm trigger → position đóng, status FINISHED
+- [x] TP_SELL khi giá ≥ trigger → khớp
+- [x] STOP_BUY (short) khi giá ≥ trigger → khớp
+- [x] SL không trigger khi giá chưa chạm
+- [x] Đóng position bằng tay → SL còn lại EXPIRED
+- [x] `closePosition` + `quantity` → `-1106`
+- [x] Trigger đặt sai chiều → `-2020`
+- [x] `priceProtect` + mark lệch xa → không trigger
+- [x] triggerPrice sai tick → `-4014`
+- [x] `GET /openAlgoOrders` phản ánh đúng ngay sau mỗi thao tác
+- [x] Trùng `clientAlgoId` → `-2010`
+- [ ] Restart mock → algo còn nguyên (**chuyển sang M0.10**)
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| Algo CRUD | ⬜ Chưa | | |
-| Trigger 4 chiều | ⬜ Chưa | | |
-| closePosition | ⬜ Chưa | | |
-| EXPIRED khi flat | ⬜ Chưa | | |
+| Algo CRUD | ✅ | container: NEW → query → cancel → `CANCELED`; `history` total 1 | 17/11/2026 |
+| Trigger 4 chiều | ✅ | test: SL/TP × BUY/SELL với giá cố định | 17/11/2026 |
+| closePosition | ✅ | đóng đúng `abs(positionAmt)`, order con có `close_position=1` | 17/11/2026 |
+| EXPIRED khi flat | ✅ | đóng tay → `ALGO.tick()` → `EXPIRED` | 17/11/2026 |
+| priceProtect | ✅ | mark 94.000 vs last 100.000 (6% > 5%) → giữ `NEW` | 17/11/2026 |
+| 67 test pass | ✅ | `pytest` xanh, `ruff` sạch | 17/11/2026 |
 
 ### Ghi chú
 
-- Đây là chỗ engine dễ mất tiền nhất ở live. Mock phải bắt được lỗi "SL đặt nhưng không bao giờ trigger vì sai chiều".
-- `-4120` chỉ trả ở `/order`; nếu mock trả `-4120` ở `/algoOrder` thì engine sẽ không bao giờ test được happy path.
+- **Đây là phần quan trọng nhất của mock.** Engine mất tiền ở live chủ yếu vì SL đặt sai chiều hoặc không bao giờ trigger; 4 test chiều trigger là lá chắn cho lỗi đó.
+- SL dùng `ENGINE.market_close()` — **bỏ qua kiểm tra margin**. Nếu dùng đường đặt lệnh thường, một vị thế đang lỗ có thể bị từ chối đóng vì "margin insufficient", đúng thảm hoạ mà mock phải ngăn.
+- `close_position=1` trên order con để phân biệt lệnh SL/TP với lệnh thường khi phân tích PnL.
+- `TRAILING_STOP_MARKET` **chưa hỗ trợ** (Tier C). Engine phải tự trailing bằng cancel+place, mock chỉ cần STOP_MARKET.
+- Test dùng `monkeypatch` giá cố định thay vì `replay` để không phụ thuộc dữ liệu thị trường thật.
 
 ---
 

@@ -6,7 +6,9 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from .algo import ALGO
 from .api_account import router as account_router
+from .api_algo import router as algo_router
 from .api_core import router as core_router
 from .api_market import router as market_router
 from .api_order import router as order_router
@@ -95,20 +97,25 @@ def create_app() -> FastAPI:
     app.include_router(market_router)
     app.include_router(account_router)
     app.include_router(order_router)
+    app.include_router(algo_router)
 
     async def _engine_loop() -> None:
         import asyncio
         while True:
             try:
                 ENGINE.tick()
+                ALGO.tick()
             except Exception:  # pragma: no cover
                 log.exception("engine tick loi")
             await asyncio.sleep(1.0)
 
     @app.on_event("startup")
     async def _startup() -> None:
-        MARKET.boot()
-        STORE.init(CFG.db_path, CFG.initial_balance)
+        # Chi init 1 lan: test da init san store/market thi khong ghi de
+        if not MARKET.booted:
+            MARKET.boot()
+        if STORE.conn is None:
+            STORE.init(CFG.db_path, CFG.initial_balance)
         import asyncio
         app.state.engine_task = asyncio.create_task(_engine_loop())
         log.info(

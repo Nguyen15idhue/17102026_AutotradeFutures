@@ -211,6 +211,36 @@ class Engine:
             if hit:
                 self._execute(o, dec(o["price"]), maker=True)
 
+    def market_close(self, symbol: str, side: str, qty: Decimal) -> dict:
+        """Dong vi the bang market — bo qua kiem tra margin (dung cho SL/TP)."""
+        order_id = STORE.next_id("order_id", 3_000_000_000)
+        ts = state.now_ms()
+        order = {
+            "order_id": order_id,
+            "client_order_id": f"close{order_id}",
+            "symbol": symbol.upper(),
+            "side": side.upper(),
+            "type": "MARKET",
+            "orig_type": "MARKET",
+            "time_in_force": None,
+            "price": "0",
+            "stop_price": "0",
+            "orig_qty": str(qty),
+            "executed_qty": "0",
+            "avg_price": "0",
+            "status": "NEW",
+            "reduce_only": 1,
+            "close_position": 1,
+            "working_type": "CONTRACT_PRICE",
+            "price_protect": 0,
+            "created_ms": ts,
+            "updated_ms": ts,
+        }
+        STORE.insert_order(order)
+        bid, ask = MARKET.quote(symbol)
+        self._execute(order, self._market_price(side, bid, ask), maker=False)
+        return STORE.order(order_id=order_id)
+
     # ------------------------------------------------------------ view
 
     def view(self, o: dict) -> dict[str, Any]:
