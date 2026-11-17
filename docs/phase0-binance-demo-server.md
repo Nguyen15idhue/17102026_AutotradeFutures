@@ -456,26 +456,31 @@ Mock phải khó tính y như thật: đúng thứ tự param, đúng timestamp,
 
 ### Checklist test
 
-- [ ] `/klines` 3 mode → cùng key set
-- [ ] `replay` chạy 2 lần → hash giống
-- [ ] `synthetic` seed 42 → chuỗi giá giống ở 2 lần
-- [ ] `jump_prob=0.05` → tạo được cú nhảy > 2% (test crash)
-- [ ] Cache: đo số request upstream
-- [ ] `/premiumIndex` có `markPrice` + `nextFundingTime`
+- [x] `/klines` 3 mode → cùng key set (12 cột)
+- [x] `replay` chạy 2 lần → kết quả giống
+- [x] `synthetic` cùng seed → chuỗi giá giống ở 2 lần
+- [x] `SYNTH_JUMP_PROB=0.05` → tạo được cú nhảy > 2% (test crash)
+- [x] Cache TTL hoạt động (test helper)
+- [x] `/premiumIndex` có `markPrice` + `nextFundingTime`, mark ≠ last
+- [x] `replay` dịch thời gian → nến cuối "tươi" (< 1 khung)
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| Proxy | ⬜ Chưa | | |
-| Replay | ⬜ Chưa | | |
-| Synthetic | ⬜ Chưa | | |
-| Cache TTL | ⬜ Chưa | | |
+| Proxy | ✅ (code) | Forward `fapi.binance.com` + cache TTL; **chưa test do cần internet ổn định** | 17/11/2026 |
+| Replay | ✅ | container: BTC 15m close `64922.30` (giá thật từ fixture), nến cuối cách hiện tại 979s | 17/11/2026 |
+| Synthetic | ✅ | test tất định theo seed; hỗ trợ jump để tạo crash | 17/11/2026 |
+| Cache TTL | ✅ | `_store/_cached` test: hết hạn đúng 50ms | 17/11/2026 |
+| mark ≠ last | ✅ | `64922.48` vs `64922.30` (basis 0,02%) | 17/11/2026 |
+| bookTicker | ✅ | ETH `1818.42 / 1818.52`, spread = 1 tick | 17/11/2026 |
 
 ### Ghi chú
 
-- `proxy` mode là **rủi ro phụ thuộc**: nếu Binance đổi field, mock đổi theo. Vì vậy `replay` mới là chế độ dùng cho CI.
-- Mark price phải khác last price một chút (0,02–0,05%) để test `workingType=MARK_PRICE` thật sự có ý nghĩa.
+- `replay` **dịch thời gian**: nến cuối được kéo về sát hiện tại, để engine không coi dữ liệu là stale. Nội dung nến là dữ liệu thật, chỉ timestamp bị dịch — ghi rõ để không ai nhầm là dữ liệu real-time.
+- `synthetic` dùng hàm băm theo **(seed, symbol, chỉ số nến)** → một nến luôn có cùng giá trị dù gọi lúc nào. Đây là điều kiện để test tất định.
+- `synthetic` không đảm bảo nhất quán giữa 1m và 15m (Tier B). Không dùng để kiểm tra logic aggregate.
+- Proxy mode là **rủi ro phụ thuộc**: Binance đổi field thì mock phải sửa theo. CI luôn chạy `replay`.
 
 ---
 

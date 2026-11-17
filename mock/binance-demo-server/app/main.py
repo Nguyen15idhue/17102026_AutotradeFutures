@@ -8,9 +8,11 @@ from fastapi.responses import JSONResponse
 
 from .api_account import router as account_router
 from .api_core import router as core_router
+from .api_market import router as market_router
 from .auth import LIMITS, is_order_route, weight_for
 from .config import CFG
 from .errors import BinanceError
+from .market import MARKET
 
 logging.basicConfig(
     level=getattr(logging, CFG.log_level, logging.INFO),
@@ -87,13 +89,15 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(core_router)
+    app.include_router(market_router)
     app.include_router(account_router)
 
     @app.on_event("startup")
     async def _startup() -> None:
+        MARKET.boot()
         log.info(
-            "mock started market_mode=%s speed=%s balance=%s auth_strict=%s",
-            CFG.market_mode, CFG.speed, CFG.initial_balance, CFG.auth_strict,
+            "mock started market_mode=%s speed=%s balance=%s auth_strict=%s symbols=%d",
+            CFG.market_mode, CFG.speed, CFG.initial_balance, CFG.auth_strict, len(MARKET.symbols()),
         )
 
     return app

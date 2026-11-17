@@ -42,6 +42,7 @@ class Config:
         self.fill_model = _s("FILL_MODEL", "pessimistic").lower()
         self.slippage_bps = _f("SLIPPAGE_BPS", 5.0)
         self.max_leverage = _i("MAX_LEVERAGE", 125)
+        self.synth_jump_prob = _f("SYNTH_JUMP_PROB", 0.0)   # xac suat 1 nen co cu nhay (test crash)
 
         # --- bao mat / loi ---
         self.auth_strict = _b("AUTH_STRICT", True)
