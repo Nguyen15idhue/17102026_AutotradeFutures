@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.1 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.6
+Phiên bản: 1.2 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.6
 
 ---
 
@@ -522,6 +522,9 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 
 ### Việc cần làm
 
+0. **Live smoke test ≤ 0,05 USD (bắt buộc trước khi nạp 300 USD).** 1 lệnh size tối thiểu + SL qua
+   `/fapi/v1/algoOrder` + cancel + close trên Binance thật, để xác nhận sàn chấp nhận payload
+   (encoding/param/fill thật — mock không chứng minh được điều này). Pass mới làm bước 1.
 1. Sub-account riêng, API key futures + **tắt withdrawal** + IP whitelist. Nạp đúng 300 USD, không thêm.
 2. Isolated margin, leverage 3x.
 3. Chạy 4 tuần ở risk 0,25% → review → 4 tuần ở 0,5% nếu pass.
@@ -542,6 +545,7 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 
 ### Checklist test
 
+- [ ] Live smoke ≤ 0,05 USD pass (1 lệnh + SL algo + cancel + close, payload được sàn chấp nhận)
 - [ ] API key không có quyền rút (kiểm tra trên Binance)
 - [ ] IP whitelist đúng IP VPS
 - [ ] `.env` không nằm trong image (`docker history` sạch)
@@ -554,6 +558,7 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
+| Live smoke ≤ 0,05 USD | ⬜ Chưa | | |
 | Sub-account + key an toàn | ⬜ Chưa | | |
 | 4 tuần risk 0,25% | ⬜ Chưa | | |
 | 4 tuần risk 0,5% | ⬜ Chưa | | |
@@ -592,3 +597,4 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 |---|---|---|
 | 17/11/2026 | 1.0 | Tạo mới, tách từ spec v1.6 |
 | 17/11/2026 | 1.1 | P1.1: chốt soak 72h chạy trên VPS, cho phép hoãn song song với P1.2 kèm 4 điều kiện + tiêu chí traffic tối thiểu |
+| 17/11/2026 | 1.2 | P1.8: bổ sung live smoke test ≤ 0,05 USD làm bước 0 bắt buộc + checklist + dòng kết quả |
