@@ -3,7 +3,7 @@
 File này ghi **kết quả thật** của bảng xác minh §4.3 (`docs/mvp-binance-futures-bot.md`) và các lần kiểm tra API.
 Nguyên tắc: chỉ ghi thứ đã chạy và có output. Không chép lại tài liệu.
 
-- Môi trường: live `https://fapi.binance.com` (không dùng demo — demo key không tạo được)
+- Môi trường: live `https://fapi.binance.com` (không dùng mock — mock key không tạo được)
 - Ngày chạy: 17/11/2026
 - Công cụ: script Python stdlib (urllib + hmac), key đọc từ `.env`, **chỉ đọc** + 1 lệnh `order/test` không gửi lên sàn
 
@@ -14,7 +14,7 @@ Nguyên tắc: chỉ ghi thứ đã chạy và có output. Không chép lại t�
 | # | Mục (§4.3) | Kết quả | Ghi chú |
 |---|---|---|---|
 | 1 | REST host hoạt động | ✅ | `GET /fapi/v1/time` → 200 |
-| 2 | WS host | ⬜ Chưa test | demo WS không dùng được; test lại khi có mock |
+| 2 | WS host | ⬜ Chưa test | mock WS không dùng được; test lại khi có mock |
 | 3 | Algo order | ✅ **gián tiếp** | `POST /fapi/v1/order/test` với `STOP_MARKET` → **`-4120`** ⇒ phải dùng `/fapi/v1/algoOrder` |
 | 4 | Phí thực tế | ✅ | `maker 0,0200%` · `taker 0,0500%` — khớp spec |
 | 5 | Min notional | ✅ | **Không đồng nhất** — xem bảng dưới |
@@ -97,7 +97,7 @@ Nguyên tắc: chỉ ghi thứ đã chạy và có output. Không chép lại t�
 3. `GET /sapi/v1/capital/withdraw/history` trả **200** kể cả khi key **không** có quyền rút. Endpoint này chỉ cần quyền đọc ⇒ **không dùng làm phép thử quyền rút**. Chỉ `apiRestrictions` mới đáng tin.
 4. `POST /fapi/v1/order/test` là cách an toàn để kiểm tra `-4120` mà **không đặt lệnh thật**. Dùng lại trong mock và trong CI.
 5. `leverageBracket` trả `initialLeverage = 150` cho BTCUSDT bậc 1 ⇒ max leverage thị trường là 150x, nhưng hệ thống cố định 3x (§3.3).
-6. Key live hoạt động bình thường ⇒ **không cần demo** để phát triển; mock server (Phase 0) vẫn là môi trường chính.
+6. Key live hoạt động bình thường ⇒ **không cần mock** để phát triển; mock server (Phase 0) vẫn là môi trường chính.
 7. Độ lệch đồng hồ **phải bù ở tầng code**, không chỉ dựa vào NTP: đọc `serverTime` khi khởi động, tính `offset`, cộng vào `timestamp` mỗi request. NTP trên VPS/Windows có thể trôi hoặc bị chặn UDP 123.
 
 ---

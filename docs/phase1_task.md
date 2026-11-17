@@ -13,7 +13,7 @@ Bạn đang xây một bot tự động giao dịch **Binance USDⓈ-M Futures**
 
 | Phase | Nội dung | Vốn thật | Thời lượng | Chi phí/tháng |
 |---|---|---|---|---|
-| **1 (file này)** | MVP: 2 chiến lược + risk engine + dashboard + demo + live 300 USD | 300 USD | ~22 tuần | 0 USD (VPS sẵn có) |
+| **1 (file này)** | MVP: 2 chiến lược + risk engine + dashboard + mock + live 300 USD | 300 USD | ~22 tuần | 0 USD (VPS sẵn có) |
 | 2 | AI gate: 2 LLM phủ quyết/giảm size trước tin tức | giữ 300 USD | ~8–12 tuần | 2–7 USD |
 | 3 | Trend Pullback live + (sau đó) Funding carry | tăng dần | ~14 tuần | 2–7 USD |
 
@@ -51,16 +51,16 @@ Không phải "lãi". Xong là:
 | Mã | Phase con | Tuần | Cổng ra (tóm tắt) |
 |---|---|---|---|
 | P1.0 | Xác minh môi trường & tài khoản | 0 | 13/13 mục §4.3 pass |
-| P1.1 | Exchange adapter (REST/WS/algo/reconcile) | 1–2 | 72h demo, 0 orphan |
+| P1.1 | Exchange adapter (REST/WS/algo/reconcile) | 1–2 | 72h mock, 0 orphan |
 | P1.2 | Data + Regime engine | 2 | nhãn regime ổn định, replay tất định |
 | P1.3 | Risk engine + Executor | 3 | 100% lệnh qua risk, kill switch OK |
 | P1.4 | Mean Reversion + backtest | 4 | ≥150 lệnh, expectancy > 0 |
 | P1.5 | Squeeze + gating | 5 | 2 chiến lược không đánh nhau |
 | P1.6 | Paper + Dashboard v1 + Trend shadow | 6 | dashboard OK, kill switch < 2s |
-| P1.7 | Demo 5.000 USD (4 tuần) | 7–10 | go/no-go §9.5 pass |
+| P1.7 | Mock 5.000 USD (4 tuần) | 7–10 | go/no-go §9.5 pass |
 | P1.8 | Live 300 USD (8 tuần) | 15–22 | 8 tuần ổn định mới tăng size |
 
-> Ghi chú lịch: tuần 11–14 trong spec gốc dành cho Trend demo. Ở cấu trúc mới, phần đó chuyển sang **Phase 3**, nên Phase 1 nhảy từ P1.7 (tuần 10) sang P1.8 (tuần 15) với 4 tuần đệm để sửa lỗi phát hiện trong demo.
+> Ghi chú lịch: tuần 11–14 trong spec gốc dành cho Trend mock. Ở cấu trúc mới, phần đó chuyển sang **Phase 3**, nên Phase 1 nhảy từ P1.7 (tuần 10) sang P1.8 (tuần 15) với 4 tuần đệm để sửa lỗi phát hiện trong mock.
 
 ---
 
@@ -68,13 +68,13 @@ Không phải "lãi". Xong là:
 
 ### Giải thích cơ bản
 
-Trước khi viết dòng code nào, bạn phải chứng minh **những thứ tài liệu nói là đúng với tài khoản của bạn**. Binance đổi API, đổi host demo, đổi cơ chế lệnh điều kiện (vụ Algo migration 09/12/2025 là ví dụ: `STOP_MARKET` gửi vào `/fapi/v1/order` giờ trả lỗi `-4120`). Nếu bạn xây 3 tuần rồi mới phát hiện host demo sai, bạn mất 3 tuần.
+Trước khi viết dòng code nào, bạn phải chứng minh **những thứ tài liệu nói là đúng với tài khoản của bạn**. Binance đổi API, đổi host mock, đổi cơ chế lệnh điều kiện (vụ Algo migration 09/12/2025 là ví dụ: `STOP_MARKET` gửi vào `/fapi/v1/order` giờ trả lỗi `-4120`). Nếu bạn xây 3 tuần rồi mới phát hiện host mock sai, bạn mất 3 tuần.
 
 ### Việc cần làm
 
-1. Tạo tài khoản demo, tạo API key **riêng cho demo**; tạo sub-account live riêng với key **tắt withdrawal + IP whitelist** (chưa nạp tiền).
+1. Dựng `binance-demo-server` (`docker compose up -d --build`) — **không cần API key Binance**. Tạo sub-account live riêng với key **tắt withdrawal + IP whitelist** (chưa nạp tiền).
 2. Chạy 13 mục bảng §4.3, ghi kết quả thật vào `docs/verification.md` (bảng: mục / lệnh đã chạy / output thật / ngày).
-3. Dựng Docker skeleton: `engine/Dockerfile`, `dashboard/Dockerfile`, `docker-compose.yml`, healthcheck, named volume. App rỗng nhưng `docker compose ps` phải healthy.
+3. Dựng Docker skeleton: `engine/Dockerfile`, `dashboard/Dockerfile`, `docker-compose.yml` (profile `app`), healthcheck, named volume. App rỗng nhưng `docker compose ps` phải healthy.
 4. Tạo `.env` từ `.env.example`; xác nhận `.dockerignore` che `.env`, `data/`, `.git`.
 5. Test `curl -I https://api.telegram.org` từ máy sẽ chạy bot.
 
@@ -83,22 +83,23 @@ Trước khi viết dòng code nào, bạn phải chứng minh **những thứ t
 | # | Yêu cầu | Cách đo |
 |---|---|---|
 | 1 | 13/13 mục §4.3 có output thật, không "theo tài liệu" | `docs/verification.md` đầy đủ |
-| 2 | Biết chính xác WS host demo hoạt động | Ghi lại host đã test được |
-| 3 | Biết `/fapi/v1/algoOrder` có chạy trên demo hay không | Trả `algoId` = OK; lỗi = phải có phương án B (SL mô phỏng trong bot + market close) |
+| 2 | Biết chính xác WS host mock hoạt động | Ghi lại host đã test được |
+| 3 | Biết `/fapi/v1/algoOrder` có chạy trên mock hay không | Trả `algoId` = OK; lỗi = phải có phương án B (SL mô phỏng trong bot + market close) |
 | 4 | `docker compose ps` = 2 service healthy | Ảnh/log |
 | 5 | `docker history --no-trunc <image>` không chứa secret | grep rỗng |
 
 ### Checklist test
 
-- [ ] `GET https://demo-fapi.binance.com/fapi/v1/time` → có `serverTime`
-- [ ] WS market demo nhận được kline
-- [ ] WS user demo nhận được `ORDER_TRADE_UPDATE` và `ALGO_UPDATE`
-- [ ] `POST /fapi/v1/algoOrder` với `STOP_MARKET` size nhỏ → có `algoId`
+- [ ] `GET http://127.0.0.1:8081/fapi/v1/time` → có `serverTime` (**không dùng `demo-fapi.binance.com`**)
+- [ ] `POST /fapi/v1/listenKey` → có `listenKey`
+- [ ] WS user (`ws://127.0.0.1:8081/ws/<key>`) nhận được `ORDER_TRADE_UPDATE` và `ALGO_UPDATE`
+- [ ] `POST /fapi/v1/algoOrder` với `STOP_MARKET closePosition` → có `algoId`
 - [ ] `GET /fapi/v1/exchangeInfo` → đọc được tickSize/stepSize/minNotional 10 symbol
 - [ ] `GET /fapi/v1/commissionRate` → ~0,02/0,05%
 - [ ] `GET /fapi/v1/leverageBracket` → có MMR bậc 1
 - [ ] Tải 1 file kline từ `data.binance.vision` thành công
-- [ ] Đặt SL `closePosition=true`, đóng position bằng market → SL tự hủy (đây là mục 9, tài liệu công khai không nói rõ, **phải tự test**)
+- [ ] Đặt SL `closePosition=true`, đóng position bằng market → SL chuyển `EXPIRED`
+- [ ] `POST /_admin/ws/drop` → WS đóng, listenKey còn hiệu lực, reconnect được
 - [ ] `curl -I https://api.telegram.org` từ VPS → 200/302
 - [ ] NTP offset < 1s (`w32tm /stripchart` hoặc `chronyc tracking`)
 
@@ -107,14 +108,14 @@ Trước khi viết dòng code nào, bạn phải chứng minh **những thứ t
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
 | 13 mục xác minh | ⬜ Chưa | | |
-| Demo API key | ⬜ Chưa | | |
+| Mock API key | ⬜ Chưa | | |
 | Live sub-account (chưa nạp tiền) | ⬜ Chưa | | |
 | Docker skeleton healthy | ⬜ Chưa | | |
 | `.env` + `.env.example` | ⬜ Chưa | | |
 
 ### Ghi chú
 
-- Nếu mục 3 (Algo order trên demo) fail: **không bỏ qua**. Phương án B = bot tự mô phỏng SL bằng cách theo dõi mark price 1s và gửi market close — chậm hơn SL thật, phải ghi rõ trong `verification.md` và chấp nhận rủi ro gap.
+- Nếu mục 3 (Algo order trên mock) fail: **không bỏ qua**. Phương án B = bot tự mô phỏng SL bằng cách theo dõi mark price 1s và gửi market close — chậm hơn SL thật, phải ghi rõ trong `verification.md` và chấp nhận rủi ro gap.
 - Đừng tạo key live có quyền rút, kể cả để test. Chỉ tạo 1 lần và tắt withdrawal ngay.
 - Latency VPS không quan trọng với khung 15m (100–300ms là chấp nhận được), nhưng **NTP sync bắt buộc** vì Binance ký request theo timestamp (`-1021` nếu lệch).
 
@@ -149,7 +150,7 @@ Reconcile là phần quan trọng nhất: bot giữ state trong SQLite, sàn gi�
 
 ### Checklist test
 
-- [ ] Chạy demo 72h liên tục: 0 orphan order
+- [ ] Chạy mock 72h liên tục: 0 orphan order
 - [ ] Reconnect ≥ 5 lần: reconcile diff = 0 mỗi lần
 - [ ] Restart container giữa lúc có position: SL còn trên sàn, bot đọc lại đúng
 - [ ] Gửi trùng `clientOrderId`: không tạo lệnh thứ 2
@@ -165,7 +166,7 @@ Reconcile là phần quan trọng nhất: bot giữ state trong SQLite, sàn gi�
 | WS market + user | ⬜ Chưa | | |
 | Order state machine | ⬜ Chưa | | |
 | Reconcile 5s | ⬜ Chưa | | |
-| 72h demo 0 orphan | ⬜ Chưa | | |
+| 72h mock 0 orphan | ⬜ Chưa | | |
 
 ### Ghi chú
 
@@ -291,7 +292,7 @@ Make-before-break nghĩa là: đặt SL mới **trước**, xóa SL cũ **sau**.
 
 MR là chiến lược chính. Vào lệnh khi giá lệch 2σ khỏi trung bình **và** đóng nến quay lại trong band. TP về mid (gần), SL ngoài biên range (rộng hơn). Win rate kỳ vọng 45–55%.
 
-Backtest ở bước này không phải để "tìm bộ tham số đẹp", mà để **chứng minh chiến lược không âm sau phí** và để có baseline so với demo/live sau này.
+Backtest ở bước này không phải để "tìm bộ tham số đẹp", mà để **chứng minh chiến lược không âm sau phí** và để có baseline so với mock/live sau này.
 
 ### Việc cần làm
 
@@ -391,7 +392,7 @@ Gating là luật chặn 2 chiến lược đánh nhau trên cùng symbol: mỗi
 
 ### Giải thích cơ bản
 
-Paper = chạy full pipeline trên dữ liệu live nhưng không gửi lệnh thật (hoặc gửi demo). Mục đích là bắt lỗi vận hành trước khi có tiền.
+Paper = chạy full pipeline trên dữ liệu live nhưng không gửi lệnh thật (hoặc gửi mock). Mục đích là bắt lỗi vận hành trước khi có tiền.
 
 Dashboard là 1 trang **read-only + kill switch**. Nó chỉ đọc SQLite và ghi bảng `commands`. Nó không giữ API key, không đặt lệnh, không tính size — vì nếu dashboard bị xâm nhập, thiệt hại tối đa là "dừng bot", không phải "mất tiền".
 
@@ -443,17 +444,17 @@ Trend shadow = chạy chiến lược Trend, tính tín hiệu đầy đủ, nh�
 
 ---
 
-## P1.7 — Demo 5.000 USD, 4 tuần (tuần 7–10)
+## P1.7 — Mock 5.000 USD, 4 tuần (tuần 7–10)
 
 ### Giải thích cơ bản
 
-Đây là lần đầu hệ thống chạm thị trường đang chạy thật, nhưng bằng tiền ảo. Demo **không chứng minh edge** (fill lạc quan, không có cảm xúc, không có sự cố mạng thật) — nó chỉ chứng minh **vận hành**.
+Đây là lần đầu hệ thống chạm thị trường đang chạy thật, nhưng bằng tiền ảo. Mock **không chứng minh edge** (fill lạc quan, không có cảm xúc, không có sự cố mạng thật) — nó chỉ chứng minh **vận hành**.
 
-Vì vậy bot giữ **sổ ảo riêng 5.000 USD** (`equity_base`), không dùng số dư demo của Binance để tính risk. Nhờ vậy kết quả chuyển sang live 300 USD cùng thang đo %.
+Vì vậy bot giữ **sổ ảo riêng 5.000 USD** (`equity_base`), không dùng số dư mock của Binance để tính risk. Nhờ vậy kết quả chuyển sang live 300 USD cùng thang đo %.
 
 ### Việc cần làm
 
-1. Chạy MR + Squeeze trên demo 4 tuần, **đóng băng tham số**.
+1. Chạy MR + Squeeze trên mock 4 tuần, **đóng băng tham số**.
 2. Trend shadow chạy song song, không tính vào PnL.
 3. Mỗi ngày đọc report 5 phút; mỗi tuần review metrics + incidents.
 4. Ghi lại mọi lần bot lỗi; nếu lỗi → dừng, sửa, **reset đồng hồ 4 tuần**.
@@ -486,7 +487,7 @@ Vì vậy bot giữ **sổ ảo riêng 5.000 USD** (`equity_base`), không dùng
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| 4 tuần demo hoàn tất | ⬜ Chưa | | |
+| 4 tuần mock hoàn tất | ⬜ Chưa | | |
 | ≥ 40 lệnh | ⬜ Chưa | | |
 | Expectancy lệch ≤ ±30% | ⬜ Chưa | | |
 | Reconcile = 0 | ⬜ Chưa | | |
@@ -494,7 +495,7 @@ Vì vậy bot giữ **sổ ảo riêng 5.000 USD** (`equity_base`), không dùng
 
 ### Ghi chú
 
-- Fail 1 mục → chạy lại demo, **không lên live sớm**.
+- Fail 1 mục → chạy lại mock, **không lên live sớm**.
 - Đừng suy ra lợi nhuận năm từ 4 tuần này.
 - Đừng đổi tham số "một chút cho hợp lý" giữa kỳ — đó là phá tính hợp lệ của toàn bộ thí nghiệm.
 
@@ -550,7 +551,7 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 
 ### Ghi chú
 
-- Nếu chạm DD −6%: dừng hẳn, quay về demo. **Không** nạp thêm tiền, **không** tăng leverage, **không** đổi tham số để "gỡ".
+- Nếu chạm DD −6%: dừng hẳn, quay về mock. **Không** nạp thêm tiền, **không** tăng leverage, **không** đổi tham số để "gỡ".
 - Với 300 USD, min notional 5 USDT và stepSize khiến risk thực tế thường thấp hơn 0,25% — chấp nhận, không tăng risk để bù.
 - Đo slippage theo từng symbol: đó là dữ liệu quyết định universe tuần sau.
 
@@ -567,7 +568,7 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 | P1.4 | MR + backtest | ⬜ Chưa | | |
 | P1.5 | Squeeze + gating | ⬜ Chưa | | |
 | P1.6 | Paper + Dashboard | ⬜ Chưa | | |
-| P1.7 | Demo 4 tuần | ⬜ Chưa | | |
+| P1.7 | Mock 4 tuần | ⬜ Chưa | | |
 | P1.8 | Live 8 tuần | ⬜ Chưa | | |
 
 **Cổng vào Phase 2:** P1.8 pass + 8 tuần live ổn định + expectancy > 0 sau phí.

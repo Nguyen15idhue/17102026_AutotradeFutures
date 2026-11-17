@@ -2,15 +2,16 @@
 
 **Kế hoạch triển khai cho người mới (dân CNTT, chưa biết trading/bot)**
 
-- Phiên bản: 1.8 (kết quả xác minh live 17/11/2026: minNotional không đồng nhất — BTC 50 · ETH/LINK 20 · alt 5; ghi tại `docs/verification.md`)
+- Phiên bản: 1.9 (chuyển môi trường demo sang **mock tự dựng** `binance-demo-server`; bỏ phụ thuộc Binance Demo Trading / `demo-fapi.binance.com`)
+- Lịch sử: 1.8 (kết quả xác minh live 17/11/2026: minNotional không đồng nhất — BTC 50 · ETH/LINK 20 · alt 5; ghi tại `docs/verification.md`)
 - Lịch sử: 1.7 (thêm service `binance-demo-server` giả lập USDⓈ-M Futures cho dev/test offline — xem `docs/phase0-binance-demo-server.md`)
 - Lịch sử: 1.6 (chi phí thật: VPS tận dụng sẵn = 0; AI gate dùng GLM 5.3 Flash + DeepSeek V4 Flash ≈ 2–7 USD/tháng; tách tài liệu triển khai theo phase)
 - Lịch sử: 1.5 (thêm margin_usage_max 60% + cảnh báo stop hẹp < 0,5%)
-- Lịch sử: 1.4 (rà soát chéo: fix max positions demo 3→4; allocation shadow không tiêu budget; risk live 0,25% 4 tuần đầu; fee/slippage/recvWindow vào config; DASH_* vào .env; Telegram group outbound-only + .env.example)
-- Lịch sử: 1.3 (portfolio risk demo 2,0% + 4 vị thế; bổ sung Docker Compose)
+- Lịch sử: 1.4 (rà soát chéo: fix max positions mock 3→4; allocation shadow không tiêu budget; risk live 0,25% 4 tuần đầu; fee/slippage/recvWindow vào config; DASH_* vào .env; Telegram group outbound-only + .env.example)
+- Lịch sử: 1.3 (portfolio risk mock 2,0% + 4 vị thế; bổ sung Docker Compose)
 - Ngày: 17/11/2026
 - Phạm vi: Binance USDⓈ-M Futures (USDT-M), perpetual
-- Vốn demo: 5.000 USD (theo dõi ảo), vốn live: 300 USD
+- Vốn mock: 5.000 USD (theo dõi ảo), vốn live: 300 USD
 - Mục tiêu: **học + xác thực hệ thống**, không phải kiếm tiền nhanh
 
 > **Miễn trừ trách nhiệm:** Tài liệu này là kế hoạch kỹ thuật và giáo dục, không phải lời khuyên đầu tư. Futures có đòn bẩy có thể mất toàn bộ vốn. Không có tham số nào trong tài liệu này đảm bảo lợi nhuận. Mọi con số hiệu năng là ví dụ toán học, không phải dự báo.
@@ -27,7 +28,7 @@
 6. [Hai chiến lược của MVP](#6-hai-chiến-lược-của-mvp)
 7. [Kiến trúc hệ thống](#7-kiến-trúc-hệ-thống)
 8. [Lộ trình 12 tuần](#8-lộ-trình-12-tuần)
-9. [Chạy demo 5.000 USD](#9-chạy-demo-5000-usd)
+9. [Chạy mock 5.000 USD](#9-chạy-mock-5000-usd)
 10. [Chạy live 300 USD](#10-chạy-live-300-usd)
 11. [Quản trị rủi ro và vận hành](#11-quản-trị-rủi-ro-và-vận-hành)
 12. [Chi phí](#12-chi-phí)
@@ -46,7 +47,7 @@
 
 **Bạn sẽ không xây gì:** AI dự đoán giá, grid, martingale, 30 chiến lược, UI phức tạp, trading trong lúc thị trường hỗn loạn. Dashboard chỉ là **1 trang Node.js read-only + kill switch**.
 
-**Thời gian thực tế:** MVP ~12 tuần (6 code + 4 demo + 2 live nhỏ); thêm Trend Pullback +10 tuần (4 shadow + 4 demo + 2 chuẩn bị). Part-time 15 giờ/tuần.
+**Thời gian thực tế:** MVP ~12 tuần (6 code + 4 mock + 2 live nhỏ); thêm Trend Pullback +10 tuần (4 shadow + 4 mock + 2 chuẩn bị). Part-time 15 giờ/tuần.
 
 **Đóng gói:** Docker Compose ngay từ ngày đầu — 2 service (`engine` Python, `dashboard` Node), SQLite trên named volume, secrets qua `.env` (không bake vào image).
 
@@ -88,20 +89,29 @@ Không phải vì "chiến lược dở", mà vì 5 thứ mang tính cấu trúc
 
 Bot của bạn phải được thiết kế để **sống sót qua cả 5 thứ trên**, trước khi nói đến lợi nhuận.
 
-## 2.3 Demo khác live ở đâu
+## 2.3 Mock khác live ở đâu
 
-Binance Demo Trading cho bạn tiền ảo và API riêng, nhưng:
+**Quan trọng — định nghĩa môi trường:**
 
-- Chart, order book và **cách khớp lệnh có thể khác live** (Binance nói rõ trong FAQ).
-- Demo **không có export** lịch sử → bot phải tự ghi log/DB.
-- Fill trong demo thường **lạc quan hơn** live, đặc biệt với limit order.
-- Không có cảm xúc, không có slippage thật, không có sự cố mạng thật.
+| Tên | Là gì | Dùng không |
+|---|---|---|
+| **`mock`** | Server **tự dựng** `binance-demo-server` (FastAPI) trong `docker-compose.yml` — mô phỏng REST + WS của Binance USDⓈ-M Futures | ✅ **Đây là môi trường demo chính thức của dự án** |
+| **Binance Demo Trading** | Sản phẩm demo của Binance (`demo.binance.com`, `demo-fapi.binance.com`) | ❌ **Không dùng** — tạo API key hỏng, `testnet.binancefuture.com` đã bị gộp về đây |
+| **`live`** | Binance thật (`fapi.binance.com`) | Chỉ sau khi pass mock + live smoke test |
 
-→ Demo dùng để **kiểm tra plumbing và kỷ luật**, không dùng để kết luận "sẽ lãi".
+Mock thay thế Demo Trading, nhưng khác live ở các điểm phải nhớ:
+
+- **Khớp lệnh do mock tự mô phỏng** (top-of-book), không phải matching engine thật.
+- Thứ tự/độ sâu order book không tồn tại → **fill lạc quan hơn live**, nhất là limit order.
+- Không có slippage thật, không có sự cố mạng thật, không có cảm xúc.
+- Không có ADL, STP, sàn bảo trì. `TRAILING_STOP_MARKET` chưa hỗ trợ.
+- Mock **không export** lịch sử → bot phải tự ghi DB.
+
+→ Mock dùng để **kiểm tra plumbing, risk engine và kỷ luật**, không dùng để kết luận "sẽ lãi".
 
 ## 2.4 Định nghĩa thành công của MVP
 
-MVP **thành công** nếu sau 4 tuần demo + 8 tuần live nhỏ:
+MVP **thành công** nếu sau 4 tuần mock + 8 tuần live nhỏ:
 
 - Không có sự cố mất kiểm soát (không orphan order, không vị thế trần).
 - Drawdown nằm trong giới hạn đã định.
@@ -267,7 +277,7 @@ Thêm **hysteresis**: cần 3 nến xác nhận nhãn mới + cooldown 5 nến, 
 | **Survivorship bias** | Chỉ test coin còn sống | Bỏ qua coin đã delist |
 | **Multiple testing** | Thử 100 bộ tham số, chọn cái tốt nhất | Gần như chắc chắn may mắn |
 
-Quy tắc MVP: **đóng băng tham số trước khi chạy demo**, không sửa trong 4 tuần.
+Quy tắc MVP: **đóng băng tham số trước khi chạy mock**, không sửa trong 4 tuần.
 
 ## 3.8 Mười hiểu lầm phổ biến (đã gặp trong quá trình thiết kế)
 
@@ -276,7 +286,7 @@ Quy tắc MVP: **đóng băng tham số trước khi chạy demo**, không sửa
 3. **"TP cũng dời theo giá"** → Không. TP cố định hoặc bỏ; dời TP lên mãi thì không bao giờ khớp.
 4. **"Lệnh không khớp thì không mất tiền"** → Đúng, nhưng vị thế vẫn mở và vẫn lỗ được.
 5. **"Đòn bẩy cao = lãi nhanh"** → Cũng là chết nhanh; liquidation đến trước chiến lược.
-6. **"Demo lãi thì live cũng lãi"** → Không. Fill và slippage khác.
+6. **"Mock lãi thì live cũng lãi"** → Không. Fill và slippage khác.
 7. **"Nhiều chiến lược = đa dạng"** → Không. Cùng regime = cùng một cược.
 8. **"Cứ có SL là an toàn"** → SL có thể trượt giá, có thể fail nếu margin cạn, có thể bị gap xuyên qua.
 9. **"Bot chạy 24/7 là không cần giám sát"** → Sai. Cần watchdog, alert, reconcile.
@@ -288,19 +298,19 @@ Quy tắc MVP: **đóng băng tham số trước khi chạy demo**, không sửa
 
 ## 4.1 Checklist tài khoản
 
-- [ ] Tài khoản Binance (KYC cho live; demo có thể không cần tùy khu vực).
+- [ ] Tài khoản Binance (**chỉ cần cho live**; mock không cần).
 - [ ] Bật Futures account cho live.
 - [ ] Tạo **sub-account** riêng cho bot (live).
 - [ ] Tạo API key **chỉ cho sub-account**, quyền: `Enable Futures`. **Tắt withdrawal.**
 - [ ] Giới hạn IP (whitelist) = IP VPS.
 - [ ] 2FA bật; không dùng email/password cho bot.
-- [ ] Demo: vào `demo.binance.com` → API Management → tạo key demo riêng.
+- [ ] **Mock: không cần API key Binance.** Mock tự cấp secret `mock-secret` (env `MOCK_API_SECRET`); key/secret Binance chỉ dùng cho `live`.
 
 **Quy tắc bảo mật tuyệt đối:**
 
 - API secret chỉ nằm trong biến môi trường hoặc secret manager. Không commit, không log.
 - Key **không có quyền rút tiền**. Nếu sàn bị xâm nhập, thiệt hại tối đa là vốn trên futures account.
-- Không dùng key live cho testnet/demo và ngược lại (key không tương thích).
+- Không dùng key live cho testnet/mock và ngược lại (key không tương thích).
 
 ## 4.2 Checklist môi trường
 
@@ -316,21 +326,24 @@ Quy tắc MVP: **đóng băng tham số trước khi chạy demo**, không sửa
 - [ ] VPS mở được `https://api.telegram.org` (test `curl -I` trước, nếu chặn phải có proxy mới đi tiếp).
 - [ ] Backup DB hàng ngày (SQLite `.backup`, không copy file WAL đang chạy).
 
-## 4.3 Bảng xác minh kỹ thuật bắt buộc (Phase 0)
+## 4.3 Bảng xác minh kỹ thuật bắt buộc (P1.0)
+
+> Ghi chú thuật ngữ: **Phase 0** trong repo này là *mock server* (`docs/phase0-binance-demo-server.md`).
+> Bảng dưới đây thuộc **P1.0** của `docs/phase1_task.md`.
 
 Làm **trước khi viết chiến lược**. Mỗi mục phải có kết quả thực tế, không tin tài liệu mù.
 
 | # | Việc cần xác minh | Cách làm | Kỳ vọng / nguồn |
 |---|---|---|---|
-| 1 | Demo REST hoạt động | `GET https://demo-fapi.binance.com/fapi/v1/time` | Trả `serverTime` |
-| 2 | Demo WS host | Kết nối thử `wss://demo-fstream.binance.com` và `wss://fstream.binancefuture.com` | Một trong hai nhận dữ liệu; ghi lại host đúng |
-| 3 | Demo hỗ trợ Algo Order | `POST /fapi/v1/algoOrder` với `STOP_MARKET` size nhỏ | Trả `algoId`; nếu không, dùng testnet khác hoặc mô phỏng SL trong bot |
+| 1 | Mock REST hoạt động | `GET http://127.0.0.1:8081/fapi/v1/time` | Trả `serverTime` — **không dùng `demo-fapi.binance.com` nữa** |
+| 2 | Mock WS hoạt động | `POST /fapi/v1/listenKey` rồi kết nối `ws://127.0.0.1:8081/ws/<key>` | Nhận `ORDER_TRADE_UPDATE` sau khi đặt lệnh |
+| 3 | Mock hỗ trợ Algo Order | `POST /fapi/v1/algoOrder` với `STOP_MARKET closePosition` | Trả `algoId`; nếu fail thì dừng, không đi tiếp |
 | 4 | Phí thực tế | `GET /fapi/v1/commissionRate` | ~0,02% maker / 0,05% taker |
 | 5 | Min notional | `GET /fapi/v1/exchangeInfo` → filter `NOTIONAL`/`MIN_NOTIONAL` | **Đã đo 17/11/2026:** BTC 50 · ETH/LINK 20 · XRP/ADA/BNB/DOGE/SOL/AVAX/SUI 5 (USDT). Không đồng nhất — phải đọc per-symbol |
 | 6 | Tick/step | `exchangeInfo` → `PRICE_FILTER.tickSize`, `LOT_SIZE.stepSize` | Phải round đúng, nếu không lỗi `-4014`/`-4023` |
 | 7 | Rate limit | Response header `X-MBX-USED-WEIGHT-1M` | 2.400 weight/phút/IP; 1.200 lệnh/phút; 300 lệnh/10s |
-| 8 | Algo migration | Gửi `STOP_MARKET` vào `/fapi/v1/order` | Phải nhận `-4120` → dùng `/fapi/v1/algoOrder` |
-| 9 | `closePosition` | Đặt SL `closePosition=true`, đóng position bằng market | Kỳ vọng SL còn lại tự hủy/expired; tài liệu công khai không mô tả rõ nên **phải kiểm tra** `openAlgoOrders` |
+| 8 | Algo migration | Gửi `STOP_MARKET` vào `/fapi/v1/order` | Phải nhận `-4120` → dùng `/fapi/v1/algoOrder` (**đã xác nhận trên live 17/11/2026**) |
+| 9 | `closePosition` | Đặt SL `closePosition=true`, đóng position bằng market | SL còn lại tự chuyển `EXPIRED` — **đã có test tự động trong mock** |
 | 10 | `ALGO_UPDATE` | Đặt SL rồi theo dõi user stream | Nhận event `ALGO_UPDATE` |
 | 11 | Data lịch sử | Tải 1 file từ `data.binance.vision` | URL dạng `/data/futures/um/daily/klines/BTCUSDT/1m/BTCUSDT-1m-YYYY-MM-DD.zip` |
 | 12 | Funding lịch sử | `GET /fapi/v1/fundingRate` | Có dữ liệu 8h |
@@ -349,12 +362,12 @@ Nếu bất kỳ mục nào fail, **dừng lại xử lý**, không đi tiếp.
 | Sàn | Binance USDⓈ-M Futures, one-way mode |
 | Coin | 10–15 symbol thanh khoản cao nhất, review hàng tuần |
 | Khung tín hiệu | 15m; dữ liệu 1m; context 1h |
-| Chiến lược | Mean Reversion (RANGE) + Squeeze Breakout (SQUEEZE); Trend Pullback chỉ **shadow mode** trong demo |
+| Chiến lược | Mean Reversion (RANGE) + Squeeze Breakout (SQUEEZE); Trend Pullback chỉ **shadow mode** trong mock |
 | Exit | MR: TP cố định + SL cứng. Squeeze: SL cứng + trailing do bot dời |
-| Risk/lệnh | 0,5% demo; 0,25–0,5% live |
+| Risk/lệnh | 0,5% mock; 0,25–0,5% live |
 | Đòn bẩy | 3x isolated |
-| Số vị thế | Demo 4; live 2 |
-| Portfolio risk (tổng risk mở) | Demo **2,0%**; live 1,0% |
+| Số vị thế | Mock 4; live 2 |
+| Portfolio risk (tổng risk mở) | Mock **2,0%**; live 1,0% |
 | Kill switch | Daily −2%, weekly −4%, DD −6% |
 | Logging | SQLite (WAL) + stdout (Docker log rotation) + Telegram alert (outbound-only vào 1 group) |
 | AI | **Chưa có** (phase 2) |
@@ -364,7 +377,7 @@ Nếu bất kỳ mục nào fail, **dừng lại xử lý**, không đi tiếp.
 
 - Grid, market making, scalping tick.
 - Martingale, averaging down, "gồng lệnh".
-- Trend Pullback **live**, funding carry, cross-sectional. (Trend Pullback **shadow** được phép từ demo — xem 15.2.)
+- Trend Pullback **live**, funding carry, cross-sectional. (Trend Pullback **shadow** được phép từ mock — xem 15.2.)
 - AI/LLM trong hot path.
 - Tối ưu tham số theo từng coin.
 - Chạy nhiều chiến lược trên cùng symbol.
@@ -382,7 +395,7 @@ Tiêu chí lọc (chạy hàng tuần):
 
 Gợi ý 10 symbol khởi điểm: `BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `BNBUSDT`, `XRPUSDT`, `DOGEUSDT`, `ADAUSDT`, `AVAXUSDT`, `LINKUSDT`, `SUIUSDT`.
 
-**Cảnh báo tương quan:** các alt này tương quan rất cao với BTC. 4 vị thế long cùng lúc thực chất là 1 cược (portfolio risk demo cap 2,0%; live 1,0%). Risk engine phải có correlation cap.
+**Cảnh báo tương quan:** các alt này tương quan rất cao với BTC. 4 vị thế long cùng lúc thực chất là 1 cược (portfolio risk mock cap 2,0%; live 1,0%). Risk engine phải có correlation cap.
 
 ---
 
@@ -571,7 +584,7 @@ khi giá lên 66.470 (+1.200 = 1%): SL dời lên 66.470 - 2*120 = 66.230
 | Trailing Squeeze | 2×ATR | Turtle 2N (Faith, 2007) | N của Turtle là ATR(20) |
 | Time stop | 12 nến 15m (3 giờ) | Kinh nghiệm vận hành | Tránh lệnh treo vô hạn |
 | Leverage | 3x | Tự đặt, thận trọng | Liquidation rất xa |
-| Max positions | 2 live / 4 demo | Tự đặt | Demo 4×0,5% = portfolio 2,0%; live 2×0,5% = 1,0%; correlation cap |
+| Max positions | 2 live / 4 mock | Tự đặt | Mock 4×0,5% = portfolio 2,0%; live 2×0,5% = 1,0%; correlation cap |
 
 > Các tham số này là **điểm khởi đầu có cơ sở**, không phải "cấu hình vàng". Mọi thay đổi phải qua walk-forward và ghi lại lý do.
 
@@ -583,7 +596,7 @@ khi giá lên 66.470 (+1.200 = 1%): SL dời lên 66.470 - 2*120 = 66.230
 
 ```
                     ┌─────────────────────────────┐
-                    │        Binance Demo/Live     │
+                    │        Binance Mock/Live     │
                     │  REST + WS (market + user)   │
                     └───────────┬─────────────────┘
                                 │
@@ -772,10 +785,11 @@ WS chỉ là tín hiệu tăng tốc; **REST là nguồn sự thật**.
 ## 7.6 Config mẫu
 
 ```yaml
-# config/mvp.yaml
-env: demo                      # demo | live (file config tách riêng mỗi env: mvp.demo.yaml / mvp.live.yaml)
-base_url: https://demo-fapi.binance.com
-equity_base: 5000              # demo: sổ ảo riêng, bất kể balance demo; live: 300 (file live ghi đè)
+# config/mvp.mock.yaml
+env: mock                      # mock | live (file config tách riêng mỗi env: mvp.mock.yaml / mvp.live.yaml)
+base_url: http://binance-demo-server:8080    # mock tự dựng; live: https://fapi.binance.com
+ws_url: ws://binance-demo-server:8080/ws
+equity_base: 5000              # mock: sổ ảo riêng, bất kể INITIAL_BALANCE của mock; live: 300
 
 universe:
   symbols: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT,
@@ -791,14 +805,14 @@ timeframes:
   trend_context: 4h
 
 risk:
-  risk_per_trade: 0.005         # demo; live 4 tuần đầu ghi đè 0.0025, sau đó 0.005 nếu pass review
+  risk_per_trade: 0.005         # mock; live 4 tuần đầu ghi đè 0.0025, sau đó 0.005 nếu pass review
   max_leverage: 3
-  max_positions: 4              # demo; live ghi đè = 2
+  max_positions: 4              # mock; live ghi đè = 2
   daily_loss_limit: 0.02
   weekly_loss_limit: 0.04
   max_drawdown: 0.06
-  portfolio_risk_max: 0.02      # demo 2,0%; live ghi đè 0.01 — risk engine chặn mở mới khi vượt, không trừ risk/lệnh
-  max_correlated_risk: 0.02     # demo 2,0%; live ghi đè 0.01. Nhóm tương quan = return 1h 30 ngày corr > 0.8 với BTC
+  portfolio_risk_max: 0.02      # mock 2,0%; live ghi đè 0.01 — risk engine chặn mở mới khi vượt, không trừ risk/lệnh
+  max_correlated_risk: 0.02     # mock 2,0%; live ghi đè 0.01. Nhóm tương quan = return 1h 30 ngày corr > 0.8 với BTC
   blackout_minutes: 45
   stale_data_seconds: 3
   funding_close_bps: 10         # không giữ lệnh qua snapshot nếu |funding| > 0,1%, trừ khi trailing lãi > 1×ATR
@@ -866,7 +880,7 @@ execution:
   fee_bps_maker: 2             # 0,02%; backtest dùng đúng số này trừ khi commissionRate trả khác
   fee_bps_taker: 5             # 0,05%; BNB discount -10% chỉ áp khi bật trả phí bằng BNB
   slippage_bps: 5              # giả định bảo thủ cho backtest; đo lại bằng fills thực tế
-  max_orders_per_day: 10        # demo; live ghi đè = 5 (risk engine là nguồn duy nhất enforce)
+  max_orders_per_day: 10        # mock; live ghi đè = 5 (risk engine là nguồn duy nhất enforce)
 
 dashboard:
   enabled: true
@@ -967,7 +981,7 @@ dashboard/
 
 ### 8 widget của trang
 
-1. **Status**: mode (demo/live), uptime, heartbeat, WS ok, data age, clock offset.
+1. **Status**: mode (mock/live), uptime, heartbeat, WS ok, data age, clock offset.
 2. **Equity**: balance, equity, today PnL, week PnL, DD from peak, khoảng cách tới kill switch.
 3. **Positions**: symbol, strategy, side, size, entry, mark, uPnL, SL, TP, R, age.
 4. **Orders**: SL/TP đang active, số orphan, lệnh gần nhất.
@@ -1287,8 +1301,8 @@ Cổng nghiệm thu: tin test tới đúng group; kill switch từ CLI/dashboard
 | P3 | 4 | MR + backtest | ≥150 lệnh, expectancy > 0 sau phí |
 | P4 | 5 | Squeeze + gating | 2 chiến lược không đánh nhau |
 | P5 | 6 | Paper infra + metrics + **dashboard Node.js v1** | Báo cáo + dashboard chạy |
-| Demo | 7–10 | Demo 5.000 USD + **Trend shadow** | Go/no-go MVP |
-| Demo+ | 11–14 | Bật Trend thật trên demo (budget 20%) | 12 tuần forward |
+| Mock | 7–10 | Mock 5.000 USD + **Trend shadow** | Go/no-go MVP |
+| Mock+ | 11–14 | Bật Trend thật trên mock (budget 20%) | 12 tuần forward |
 | Live | 15–22 | Live 300 USD (MVP trước, Trend sau) | Review hàng tuần |
 
 ## Tuần 0 — Chuẩn bị
@@ -1312,7 +1326,7 @@ Cổng nghiệm thu: tin test tới đúng group; kill switch từ CLI/dashboard
 - Telegram alert cơ bản (outbound-only vào group: queue + dedup, không polling).
 - Chạy trong container, log ra stdout; kiểm tra `restart: unless-stopped`.
 
-**Cổng:** chạy demo 72h; 0 orphan order; reconnect ≥ 5 lần không lệch state; restart container không mất state.
+**Cổng:** chạy mock 72h; 0 orphan order; reconnect ≥ 5 lần không lệch state; restart container không mất state.
 
 ## Tuần 2 — Data & Regime
 
@@ -1357,7 +1371,7 @@ Cổng nghiệm thu: tin test tới đúng group; kill switch từ CLI/dashboard
 
 ## Tuần 6 — Paper infra + Dashboard v1
 
-- Chạy full pipeline trên dữ liệu live, không gửi lệnh thật (hoặc demo).
+- Chạy full pipeline trên dữ liệu live, không gửi lệnh thật (hoặc mock).
 - Metrics collector + daily report.
 - **Dashboard Node.js v1**: 1 trang, 8 widget, read-only, kill switch qua bảng `commands`.
 - Build dashboard image; compose chạy 2 service; healthcheck + log rotation hoạt động.
@@ -1367,20 +1381,20 @@ Cổng nghiệm thu: tin test tới đúng group; kill switch từ CLI/dashboard
 
 **Cổng:** report + dashboard chạy; kill switch < 2s; trend shadow ghi đủ signal + lý do bỏ lỡ.
 
-## Tuần 7–10 — Demo 5.000 USD + Trend shadow
+## Tuần 7–10 — Mock 5.000 USD + Trend shadow
 
-- MVP MR + Squeeze chạy demo theo mục 9.
+- MVP MR + Squeeze chạy mock theo mục 9.
 - Trend Pullback chạy **shadow**: không đặt lệnh, ghi signal/fill giả/PnL ảo.
 - Đo: số tín hiệu, tỷ lệ có pullback hợp lệ, R ảo, lý do bỏ lỡ.
 
 **Cổng:** MVP pass go/no-go; shadow có ≥ 20 tín hiệu, không lỗi logic.
 
-## Tuần 11–14 — Bật Trend thật trên demo
+## Tuần 11–14 — Bật Trend thật trên mock
 
 - Chỉ khi MVP ổn định và shadow sạch.
 - Sổ ảo riêng cho Trend, risk budget 20%.
 - Global position manager chặn 2 chiến lược cùng symbol.
-- 4 tuần demo có lệnh thật + 4 tuần shadow = **12 tuần forward**.
+- 4 tuần mock có lệnh thật + 4 tuần shadow = **12 tuần forward**.
 
 **Cổng:** không xung đột lệnh; PnL tách được theo `strategy_id`.
 
@@ -1394,22 +1408,28 @@ Cổng nghiệm thu: tin test tới đúng group; kill switch từ CLI/dashboard
 
 ---
 
-# 9. Chạy demo 5.000 USD
+# 9. Chạy mock 5.000 USD
 
-## 9.1 Bật demo
+## 9.1 Bật mock
 
-1. Đăng nhập Binance → `More` → `Demo Trading` (hoặc `demo.binance.com`).
-2. Tạo API key **trong Demo** (key demo tách biệt key live).
-3. Bot dùng REST `https://demo-fapi.binance.com`.
-4. Ghi lại WS host thực tế hoạt động (xem bảng 4.3 mục 2).
-5. Điền key vào `.env` trên VPS, rồi `docker compose up -d --build`.
-6. Kiểm tra `docker compose ps` cả 2 service **healthy**.
+Mock là container trong repo, **không cần API key Binance**:
 
-## 9.2 Vấn đề số dư demo
+1. `docker compose up -d --build` → service `binance-demo-server` healthy.
+2. Kiểm tra: `curl http://127.0.0.1:8081/fapi/v1/ping` → `{}`; mở `http://127.0.0.1:8081/_debug`.
+3. Engine trỏ vào mock bằng env — **không sửa code**:
+   ```
+   BINANCE_BASE_URL=http://binance-demo-server:8080
+   BINANCE_WS_URL=ws://binance-demo-server:8080/ws
+   ```
+4. Chọn nguồn giá: `MOCK_MARKET_MODE=proxy` (giá thật, cần internet) hoặc `replay` (offline, tất định).
+5. Bí mật của mock mặc định là `mock-secret` (env `MOCK_API_SECRET`) — **không phải** secret Binance.
+6. Kiểm tra `docker compose ps` → `Up (healthy)`; `docker stats` → RAM < 100 MB.
 
-Binance cấp tiền ảo theo khu vực/thời điểm (nhiều nguồn ghi 15.000 USDT; không có cam kết cố định). **Đừng phụ thuộc số dư demo.**
+Chi tiết đầy đủ: `docs/phase0-binance-demo-server.md`.
 
-Cách đúng: bot giữ **sổ ảo riêng 5.000 USD**:
+## 9.2 Sổ ảo 5.000 USD
+
+Mock khởi tạo số dư bằng `INITIAL_BALANCE` (mặc định 5000 USDT), nhưng **bot vẫn giữ sổ ảo riêng** để không phụ thuộc số dư của mock:
 
 ```yaml
 equity_base: 5000
@@ -1417,24 +1437,29 @@ equity_base: 5000
 
 - Sizing luôn tính trên `equity_base` (hoặc equity ảo cập nhật theo PnL của bot).
 - Báo cáo PnL theo % của 5.000.
-- Số dư demo thực tế chỉ là "trần" để lệnh không bị từ chối; không dùng nó để tính risk.
+- `INITIAL_BALANCE` của mock chỉ là "trần" để lệnh không bị từ chối vì margin; không dùng nó để tính risk.
 
-Nhờ vậy, kết quả demo chuyển sang live 300 USD **cùng thang đo %**.
+Nhờ vậy, kết quả mock chuyển sang live 300 USD **cùng thang đo %**.
 
-## 9.3 Demo khác live — nhớ kỹ
+## 9.3 Mock khác live — nhớ kỹ
 
-| Điểm | Demo | Live |
+| Điểm | Mock (`binance-demo-server`) | Live |
 |---|---|---|
-| Fill limit | Lạc quan, dễ khớp | Có queue, có thể không khớp |
-| Slippage | Gần như 0 | 0,05–0,3% khi biến động |
-| Order book | Mô phỏng | Thật |
-| Export | **Không có** | Có |
+| Nguồn lệnh | Không cần API key; secret `mock-secret` | Key/secret Binance thật |
+| Nguồn giá | `proxy` (giá thật) hoặc `replay`/`synthetic` | Thật |
+| Fill limit | Mô phỏng top-of-book, lạc quan, dễ khớp | Có queue, có thể không khớp |
+| Slippage | Mô phỏng theo `SLIPPAGE_BPS` (mặc định 5) | 0,05–0,3% khi biến động |
+| Order book | Không có depth thật | Thật |
+| Export | **Không có** (bot tự ghi DB) | Có |
 | Cảm xúc | Không | Có |
-| Sự cố mạng | Không | Có |
+| Sự cố mạng | Chỉ khi bơm chaos | Thật |
+| ADL / STP / bảo trì | Không mô phỏng | Có |
 
-→ Demo đánh giá **vận hành**, không đánh giá **edge**.
+→ Mock đánh giá **vận hành**, không đánh giá **edge**.
 
-## 9.4 Quy tắc 4 tuần demo
+> **Hệ quả cho cổng go/no-go:** vì fill của mock lạc quan hơn live, "expectancy vs backtest lệch ≤ ±30%" ở §9.5 chỉ chứng minh **logic khớp spec**, không chứng minh edge. Trước khi lên live phải có **live smoke test ≤ 0,05 USD** để xác nhận payload được Binance chấp nhận.
+
+## 9.4 Quy tắc 4 tuần mock
 
 - Risk 0,5%/lệnh; leverage 3x; max 4 vị thế; tổng risk mở ≤ 2,0%.
 - **Không sửa tham số** trong 4 tuần.
@@ -1444,7 +1469,7 @@ Nhờ vậy, kết quả demo chuyển sang live 300 USD **cùng thang đo %**.
 - Mỗi tuần: review metrics + incidents.
 - Nếu bot lỗi → dừng, sửa, **reset đồng hồ 4 tuần** (không cộng dồn).
 
-## 9.5 Go/no-go sau demo
+## 9.5 Go/no-go sau mock
 
 | Chỉ số | Ngưỡng |
 |---|---|
@@ -1458,7 +1483,7 @@ Nhờ vậy, kết quả demo chuyển sang live 300 USD **cùng thang đo %**.
 | Trend shadow | ≥ 20 tín hiệu, 0 lỗi logic, fill rate ≥ 40% |
 | Chạm daily loss −2% (portfolio 2,0%) | ≤ 1 ngày trong 4 tuần; nếu >1 → hạ portfolio về 1,5% |
 
-Fail bất kỳ mục nào → sửa, chạy lại demo. **Không lên live sớm.**
+Fail bất kỳ mục nào → sửa, chạy lại mock. **Không lên live sớm.**
 
 ---
 
@@ -1528,7 +1553,7 @@ Taker→taker (0,10%) thì cao hơn ~43%.
 
 - Daily −2% → dừng 24h.
 - Weekly −4% → dừng, review cuối tuần.
-- DD −6% từ đỉnh → dừng hẳn, quay lại demo.
+- DD −6% từ đỉnh → dừng hẳn, quay lại mock.
 - 3 sự cố vận hành nghiêm trọng trong 2 tuần → dừng.
 - Bạn cảm thấy muốn "gỡ" → dừng.
 
@@ -1538,7 +1563,7 @@ Taker→taker (0,10%) thì cao hơn ~43%.
 
 ## 11.1 Bảng giới hạn cứng
 
-| Giới hạn | Demo | Live |
+| Giới hạn | Mock | Live |
 |---|---|---|
 | Risk/lệnh | 0,5% | 0,25–0,5% |
 | Leverage | 3x | 3x |
@@ -1553,12 +1578,12 @@ Taker→taker (0,10%) thì cao hơn ~43%.
 | Blackout tin | ±45 phút | ±45 phút |
 | Stale data | 3s | 3s |
 
-**Ghi chú về Portfolio risk 2,0% (demo):**
+**Ghi chú về Portfolio risk 2,0% (mock):**
 
 - 4 vị thế × 0,5% = **2,0%** tổng risk mở; risk/lệnh **không đổi** (0,5%).
 - Hệ quả phải chấp nhận: nếu cả 4 vị thế dừng lỗ cùng lúc (alt tương quan BTC cao, xem 5.3), mức lỗ −2,0% **chạm đúng** `daily loss −2%` → bot dừng 24h. Đây là hành vi mong muốn: daily limit đóng vai trò chốt chặn cuối, không phải trần lãi.
 - Vì vậy **không nới** `daily/weekly/DD`: nếu nới cả ba thì mất luôn lưới an toàn.
-- Live giữ 1,0% (2 vị thế) cho tới khi demo 4 tuần pass go/no-go 9.5 mà không có ngày nào chạm daily limit.
+- Live giữ 1,0% (2 vị thế) cho tới khi mock 4 tuần pass go/no-go 9.5 mà không có ngày nào chạm daily limit.
 - Correlation cap: 4 lệnh cùng hướng trên nhóm `beta>0.8` vẫn bị chặn ở 2,0%; muốn mở lệnh thứ 5 phải chờ đóng bớt.
 - **Margin là ràng buộc thật trên TK nhỏ:** stop 0,69% với 3x isolated cần margin ~21% vốn/lệnh; 4 vị thế ≈ 85% vốn dù portfolio risk mới 1,8%. Vì vậy risk engine chặn mở mới khi margin vượt 60% equity, và log cảnh báo mềm khi stop% < 0,5% (notional > 2× vốn/lệnh).
 
@@ -1641,7 +1666,7 @@ Taker→taker (0,10%) thì cao hơn ~43%.
 | Vốn live | 300 USD |
 | Phí giao dịch live | ~2–5 USD/tháng (tùy tần suất) |
 
-Thời gian: ~120–180 giờ trong 12 tuần cho MVP; +40–60 giờ cho Trend shadow/demo.
+Thời gian: ~120–180 giờ trong 12 tuần cho MVP; +40–60 giờ cho Trend shadow/mock.
 
 ---
 
@@ -1672,7 +1697,7 @@ Thời gian: ~120–180 giờ trong 12 tuần cho MVP; +40–60 giờ cho Trend 
 |---|---|
 | Expectancy | > 0 sau phí, funding, slippage |
 | Profit factor | > 1,15 |
-| Max DD | < 8% demo, < 6% live |
+| Max DD | < 8% mock, < 6% live |
 | Fees/gross | < 30% |
 | Số lệnh/4 tuần | ≥ 40 |
 | Slippage | ≤ 2 bps so với model |
@@ -1692,7 +1717,7 @@ Thời gian: ~120–180 giờ trong 12 tuần cho MVP; +40–60 giờ cho Trend 
 
 # 14. Kết quả kỳ vọng (thực tế)
 
-## 14.1 Demo 4 tuần (5.000 USD)
+## 14.1 Mock 4 tuần (5.000 USD)
 
 | Kịch bản | Kết quả | Diễn giải |
 |---|---|---|
@@ -1786,7 +1811,7 @@ DeepSeek V4 Flash/call   = 4.000×0,0434/1M + 700×0,30/1M   ≈ 0,000384 USD
 
 ### Vì sao shadow trước
 
-Trend 1h chỉ có 3–8 lệnh/tuần trên 25 symbol. Bốn tuần demo = 12–32 lệnh, không đủ kết luận. Shadow mode cho phép bắt đầu đo **ngay từ tuần 7** mà không thêm rủi ro và không làm nhiễu kết quả MVP.
+Trend 1h chỉ có 3–8 lệnh/tuần trên 25 symbol. Bốn tuần mock = 12–32 lệnh, không đủ kết luận. Shadow mode cho phép bắt đầu đo **ngay từ tuần 7** mà không thêm rủi ro và không làm nhiễu kết quả MVP.
 
 ### Shadow mode là gì
 
@@ -1796,7 +1821,7 @@ Trend 1h chỉ có 3–8 lệnh/tuần trên 25 symbol. Bốn tuần demo = 12�
 - Tính R ảo, MAE/MFE, và **lý do bỏ lỡ**: `no_pullback`, `too_deep`, `no_trigger`, `regime_filtered`.
 - Dashboard hiển thị tab "Trend (shadow)".
 
-### Điều kiện chuyển từ shadow sang demo có lệnh
+### Điều kiện chuyển từ shadow sang mock có lệnh
 
 - MVP MR + Squeeze pass go/no-go 4 tuần.
 - Shadow ≥ 20 tín hiệu, 0 lỗi logic.
@@ -1843,8 +1868,8 @@ Trong shadow hiện tại, vẫn **ghi signal short** (side, reason, R ảo) nh�
 
 ### Điều kiện lên live
 
-- 12 tuần forward (4 shadow + 8 có lệnh demo).
-- ≥ 50 lệnh shadow/demo.
+- 12 tuần forward (4 shadow + 8 có lệnh mock).
+- ≥ 50 lệnh shadow/mock.
 - Expectancy > 0 sau phí + funding + slippage.
 - Max DD trong budget 20%, không ảnh hưởng MVP.
 - Nếu fail → giữ shadow, không lên live.
@@ -1852,8 +1877,8 @@ Trong shadow hiện tại, vẫn **ghi signal short** (side, reason, R ảo) nh�
 
 ### Cảnh báo
 
-- Demo fill lạc quan; trend dùng market entry nên ít bị ảnh hưởng hơn limit, nhưng SL slippage trong sóng mạnh vẫn cao.
-- Không dùng 4 tuần demo để kết luận; cần 12 tuần.
+- Mock fill lạc quan; trend dùng market entry nên ít bị ảnh hưởng hơn limit, nhưng SL slippage trong sóng mạnh vẫn cao.
+- Không dùng 4 tuần mock để kết luận; cần 12 tuần.
 - Không bật trend live cùng lúc với thay đổi tham số MVP.
 - Nếu bật short: SL short là buy-stop trong panic rally, slippage và gap có thể xấu hơn long đáng kể — phải dùng `priceProtect` và đo riêng slippage theo `side`.
 
@@ -1874,7 +1899,7 @@ Trong shadow hiện tại, vẫn **ghi signal short** (side, reason, R ảo) nh�
 4. Tăng leverage sau chuỗi thua.
 5. Trade trong CRISIS vì "cơ hội".
 6. Đổi tham số mỗi ngày.
-7. Tin demo fill là thật.
+7. Tin mock fill là thật.
 8. Không reconcile, để lệnh mồ côi.
 9. API key có quyền rút tiền.
 10. Chạy bot trên máy không giám sát, không UPS.
@@ -1885,7 +1910,7 @@ Trong shadow hiện tại, vẫn **ghi signal short** (side, reason, R ảo) nh�
 15. Dùng stop quá hẹp vì "risk nhỏ" → phí ăn hết R.
 16. Public dashboard không auth, hoặc cho dashboard đặt lệnh trực tiếp.
 17. Chạy Trend live trước khi đủ 12 tuần forward.
-18. Dùng kết quả demo 4 tuần để kết luận Trend có edge.
+18. Dùng kết quả mock 4 tuần để kết luận Trend có edge.
 19. Bật Trend-short khi long-trend chưa pass, hoặc chia mẫu long/short quá sớm khiến cả hai nhánh đều thiếu power.
 20. `docker compose down -v` trên prod (xóa volume = xóa DB).
 21. COPY `.env` vào image hoặc commit `.env` lên git.
@@ -1896,7 +1921,11 @@ Trong shadow hiện tại, vẫn **ghi signal short** (side, reason, R ảo) nh�
 
 ## 17.1 Binance (chính thức)
 
-- Demo Trading FAQ: https://www.binance.com/en/support/faq/detail/9be58f73e5e14338809e3b705b9687dd
+> Ghi chú: các mục liên quan **Demo Trading** chỉ còn giá trị lịch sử — môi trường demo của dự án hiện là
+> `binance-demo-server` tự dựng (xem `docs/phase0-binance-demo-server.md`). Không dùng `demo.binance.com` /
+> `demo-fapi.binance.com` và không tạo API key demo.
+
+- Demo Trading FAQ: https://www.binance.com/en/support/faq/detail/9be58f73e5e14338809e3b705b9687dd *(không dùng)*
 - Futures Fee Structure: https://www.binance.com/en/support/faq/detail/360033544231
 - Futures rate limits: https://www.binance.com/en/support/faq/detail/281596e222414cdd9051664ea621cdc3
 - Derivatives changelog (Algo migration 2025-11-06, hiệu lực 2025-12-09): https://developers.binance.com/docs/derivatives/change-log
@@ -1918,9 +1947,9 @@ Trong shadow hiện tại, vẫn **ghi signal short** (side, reason, R ảo) nh�
 ## 17.3 Ghi chú xác minh
 
 - Thông tin phí, rate limit, Algo migration, công thức liquidation, min notional: kiểm tra tháng 11/2026.
-- Demo REST host `https://demo-fapi.binance.com`: xác nhận bởi nhiều nguồn và SDK.
-- Demo WS host: **chưa thống nhất giữa các nguồn** → bắt buộc tự test (bảng 4.3 mục 2).
-- Số dư demo mặc định: không có cam kết chính thức → dùng sổ ảo riêng.
+- **Host demo của dự án là `http://binance-demo-server:8080` (container tự dựng)**, không phải `demo-fapi.binance.com`. `demo-fapi`/`demo-fstream` chỉ còn trong tài liệu như tham chiếu lịch sử.
+- Binance Demo Trading và `testnet.binancefuture.com` **không dùng được** (tạo key hỏng / đã bị gộp) → đó là lý do dựng mock.
+- Sổ ảo 5.000 USD do bot giữ (`equity_base`), không phụ thuộc `INITIAL_BALANCE` của mock.
 - Các tham số chiến lược là **adaptation** từ nguồn gốc, chưa được chứng minh trên crypto 15m; phải walk-forward.
 
 ---
@@ -1953,7 +1982,7 @@ ts,symbol,strategy,side,entry,exit,qty,notional,sl,tp,risk_usd,pnl_usd,pnl_r,fee
 
 ## C. Checklist trước khi bật live
 
-- [ ] Demo 4 tuần pass go/no-go.
+- [ ] Mock 4 tuần pass go/no-go.
 - [ ] Reconcile = 0 trong 7 ngày liên tiếp.
 - [ ] Kill switch test thành công 3 cấp.
 - [ ] SL luôn tồn tại (audit log 100% vị thế).
@@ -1967,7 +1996,7 @@ ts,symbol,strategy,side,entry,exit,qty,notional,sl,tp,risk_usd,pnl_usd,pnl_r,fee
 - [ ] `.dockerignore` có `.env`, `data/`, `.git`; `docker history` không lộ secret.
 - [ ] Backup/restore named volume đã test; không dùng `down -v` trên prod.
 - [ ] Sổ ảo + risk budget tách theo `strategy_id`.
-- [ ] Nếu bật Trend live: đã có ≥ 12 tuần forward và ≥ 50 lệnh shadow/demo.
+- [ ] Nếu bật Trend live: đã có ≥ 12 tuần forward và ≥ 50 lệnh shadow/mock.
 - [ ] Bạn đã đọc và hiểu incident playbook.
 - [ ] Bạn chấp nhận mất 300 USD như học phí.
 
@@ -1980,7 +2009,7 @@ ts,symbol,strategy,side,entry,exit,qty,notional,sl,tp,risk_usd,pnl_usd,pnl_r,fee
 5. Nếu position lệch DB, bot có tự sửa mù không?
 6. Nếu funding tăng vọt, bot có đóng lệnh không?
 7. Nếu 5 lệnh thua liên tiếp, bạn có đổi tham số không?
-8. Nếu demo lãi 20%, bạn có tăng vốn live ngay không?
+8. Nếu mock lãi 20%, bạn có tăng vốn live ngay không?
 
 Nếu chưa trả lời được 1–6, **chưa được live**.
 
@@ -1992,8 +2021,10 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install httpx websockets polars duckdb pydantic pyyaml pytest ruff
 
-# Kiểm tra kết nối demo (không cần key)
-curl https://demo-fapi.binance.com/fapi/v1/time
+# Kiểm tra mock (không cần API key Binance)
+docker compose up -d --build
+curl http://127.0.0.1:8081/fapi/v1/time
+curl http://127.0.0.1:8081/fapi/v1/ping
 
 # Tải 1 ngày dữ liệu mẫu
 curl -O https://data.binance.vision/data/futures/um/daily/klines/BTCUSDT/1m/BTCUSDT-1m-2026-11-15.zip

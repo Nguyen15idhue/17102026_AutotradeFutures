@@ -10,13 +10,14 @@ Bot tự động giao dịch **Binance USDⓈ-M Futures** (USDT-M, perpetual), v
 
 Mục tiêu **không phải** tối đa lợi nhuận mà là: **không chết** trong lúc học. Mọi quyết định kỹ thuật ưu tiên "không mất kiểm soát vị thế" hơn "tối ưu PnL".
 
-**Trạng thái hiện tại: repo chỉ có tài liệu, CHƯA có code.**
+**Trạng thái hiện tại: đã có mock server (Phase 0 xong, 105 test). Chưa có engine/dashboard.**
 
 | Có gì | Chưa có gì |
 |---|---|
-| `docs/` (6 file spec) | `engine/`, `dashboard/`, `mock/` |
-| `.env.example` | `.env` (chỉ tồn tại trên VPS) |
-| — | git repo (chưa `git init`) |
+| `mock/binance-demo-server/` — 48 endpoint, WS, SQLite, chaos | `engine/` (toàn bộ Phase 1) |
+| `mock/contracts/`, `mock/fixtures/` | `dashboard/` |
+| `docker-compose.yml` (mock + profile `app`), CI, 5 script PS | `config/mvp.*.yaml` |
+| `docs/` (6 file), `AGENTS.md`, `.env.example` | Backtest engine, regime/risk engine |
 
 ---
 
@@ -48,7 +49,7 @@ Mục tiêu **không phải** tối đa lợi nhuận mà là: **không chết**
 7. **Không bao giờ** thêm code rút tiền, chuyển tiền nội bộ, hay universal transfer. API key không có quyền withdrawal.
 8. **Không commit `.env`**, không `COPY` `.env` vào image, không log secret/token/signature.
 9. **Không `docker compose down -v`** trên prod.
-10. **Không đổi tham số chiến lược giữa kỳ test** (4 tuần demo / 8 tuần live là một thí nghiệm, không phải một buổi chỉnh tay).
+10. **Không đổi tham số chiến lược giữa kỳ test** (4 tuần mock / 8 tuần live là một thí nghiệm, không phải một buổi chỉnh tay).
 11. **Không có nhánh `if mock:` trong engine.** Mock chỉ đổi `BINANCE_BASE_URL` / `BINANCE_WS_URL`.
 12. **Không dời SL ra xa entry** (long), không trung bình giá xuống, không martingale.
 
@@ -56,7 +57,7 @@ Mục tiêu **không phải** tối đa lợi nhuận mà là: **không chết**
 
 ## 4. Con số thiêng — dùng đúng, đừng "làm tròn cho đẹp"
 
-| Tham số | Demo | Live |
+| Tham số | Mock | Live |
 |---|---|---|
 | Risk/lệnh | 0,5% | 0,25% (4 tuần đầu) → 0,5% |
 | Max positions | 4 | 2 |
@@ -92,7 +93,7 @@ Phí:     maker 0,02% · taker 0,05% · tính trên notional
 ├── .dockerignore
 ├── docker-compose.yml        # engine + dashboard + binance-demo-server
 ├── config/
-│   ├── mvp.demo.yaml
+│   ├── mvp.mock.yaml
 │   └── mvp.live.yaml         # tách riêng, không override lẫn nhau
 ├── engine/                   # Python 3.12
 │   ├── Dockerfile
@@ -257,7 +258,7 @@ Khi làm `mock/binance-demo-server/`:
 - VPS: Linux, tận dụng máy sẵn có (không bắt buộc Tokyo/Singapore — khung 15m chịu được latency 100–300ms), **NTP sync bắt buộc**.
 - Chi phí: VPS 0 USD, Telegram 0 USD, AI gate (phase 2) 2–7 USD/tháng.
 - AI gate (phase 2) dùng **GLM 5.3 Flash** (triage) + **DeepSeek V4 Flash 0731** (reasoner) qua OpenRouter. AI chỉ được **giảm size hoặc veto**, không bao giờ là trigger.
-- Demo Trading Binance có thể hỏng ở khâu tạo API key → ưu tiên phát triển trên `binance-demo-server`; live chỉ sau live smoke test ≤ 0.05 USD.
+- **Môi trường demo = `binance-demo-server` tự dựng.** Binance Demo Trading (`demo.binance.com`) **không dùng** (tạo API key hỏng, testnet đã gộp về đó). Mock không cần API key Binance; secret mặc định `mock-secret`. Live chỉ sau live smoke test ≤ 0.05 USD.
 - Chế độ dữ liệu thị trường: **dev/paper = `proxy`** (cần internet, giá thật) · **CI = `replay`** (offline, tất định) · **test crash = `synthetic`**. Không dùng `replay` để đánh giá hành vi dài hạn (thị trường lặp y nguyên), không dùng `synthetic` để đánh giá chiến lược.
 
 ---

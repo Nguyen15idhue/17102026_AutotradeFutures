@@ -11,7 +11,7 @@ Phiên bản: 1.0 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-
 
 | Phase | Nội dung | Vốn thật | Chi phí/tháng |
 |---|---|---|---|
-| 1 | MVP: MR + Squeeze, demo 4 tuần, live 300 USD 8 tuần | 300 USD | 0 USD |
+| 1 | MVP: MR + Squeeze, mock 4 tuần, live 300 USD 8 tuần | 300 USD | 0 USD |
 | 2 | AI gate: 2 LLM phủ quyết/giảm size | giữ 300 USD | 2–7 USD |
 | **3 (file này)** | **Trend Pullback live** + **Funding carry** (phase con cuối) | tăng dần | 2–7 USD |
 
@@ -29,7 +29,7 @@ Phase 3 cũng là phase **nguy hiểm nhất về mặt tâm lý**, vì lúc nà
 
 ### 0.4 Vì sao Trend phải shadow trước
 
-Trend 1h chỉ có **3–8 lệnh/tuần trên 25 symbol**. Bốn tuần demo = 12–32 lệnh → **không đủ để kết luận**. Nếu vừa chạy vừa đánh giá, bạn sẽ kết luận bằng cảm giác.
+Trend 1h chỉ có **3–8 lệnh/tuần trên 25 symbol**. Bốn tuần mock = 12–32 lệnh → **không đủ để kết luận**. Nếu vừa chạy vừa đánh giá, bạn sẽ kết luận bằng cảm giác.
 
 Shadow mode cho phép bắt đầu đo **từ tuần 7 của Phase 1** mà không thêm rủi ro và không làm nhiễu kết quả MVP. Đến Phase 3, bạn đã có sẵn 8–10 tuần dữ liệu shadow.
 
@@ -59,7 +59,7 @@ Shadow mode cho phép bắt đầu đo **từ tuần 7 của Phase 1** mà khôn
 | Mã | Phase con | Thời lượng | Cổng ra |
 |---|---|---|---|
 | P3.0 | Kế thừa dữ liệu shadow từ Phase 1 | 0 (đã chạy) | ≥ 20 tín hiệu, 0 lỗi logic, fill rate ≥ 40% |
-| P3.1 | Bật Trend trên demo, budget 20% | 4 tuần | ≥ 50 lệnh demo, PnL tách được |
+| P3.1 | Bật Trend trên mock, budget 20% | 4 tuần | ≥ 50 lệnh mock, PnL tách được |
 | P3.2 | Global position manager (chống xung đột) | 1 tuần | 0 xung đột trong test |
 | P3.3 | Forward 12 tuần tổng (4 shadow + 8 có lệnh) | 8 tuần | expectancy > 0 sau phí |
 | P3.4 | Trend live, risk 0,2% | 4–8 tuần | ổn định, DD trong budget |
@@ -115,7 +115,7 @@ Bước này chỉ là đọc lại dữ liệu đó và quyết định có đ�
 
 ---
 
-## P3.1 — Bật Trend trên demo, budget 20% (4 tuần)
+## P3.1 — Bật Trend trên mock, budget 20% (4 tuần)
 
 ### Giải thích cơ bản
 
@@ -125,7 +125,7 @@ Trend được cấp một "ví" riêng: 20% tổng risk budget. Nghĩa là nế
 
 ### Việc cần làm
 
-1. `trend_pullback.mode: shadow` → `live` nhưng **chỉ trên demo**.
+1. `trend_pullback.mode: shadow` → `live` nhưng **chỉ trên mock**.
 2. Risk budget tách: `allocation.trend_pullback = 0.2`, và risk engine theo dõi riêng.
 3. Sổ ảo riêng cho Trend (để PnL không lẫn).
 4. Bật `allow_short: false`; vẫn ghi signal short vào shadow (miễn phí dữ liệu).
@@ -138,12 +138,12 @@ Trend được cấp một "ví" riêng: 20% tổng risk budget. Nghĩa là nế
 | 1 | PnL tách được | Query theo `strategy_id` ra số riêng |
 | 2 | Budget không vượt 20% | Test: Trend xin thêm khi đã dùng 20% → chặn |
 | 3 | 0 xung đột symbol | Log 0 trường hợp 2 chiến lược cùng symbol |
-| 4 | Đủ mẫu | ≥ 50 lệnh demo |
+| 4 | Đủ mẫu | ≥ 50 lệnh mock |
 | 5 | Signal short vẫn được ghi | `shadow_trades` có `side = short` |
 
 ### Checklist test
 
-- [ ] `mode: live` trên demo, lệnh thật trên demo API
+- [ ] `mode: live` trên mock, lệnh thật trên mock API
 - [ ] PnL theo `strategy_id` đúng
 - [ ] Test budget: Trend vượt 20% → chặn
 - [ ] Test xung đột: MR đang mở cùng symbol → Trend bị chặn
@@ -154,14 +154,14 @@ Trend được cấp một "ví" riêng: 20% tổng risk budget. Nghĩa là nế
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| Trend live trên demo | ⬜ Chưa | | |
+| Trend live trên mock | ⬜ Chưa | | |
 | Budget 20% tách riêng | ⬜ Chưa | | |
 | ≥ 50 lệnh | ⬜ Chưa | | |
 | 0 xung đột | ⬜ Chưa | | |
 
 ### Ghi chú
 
-- Demo fill lạc quan; Trend dùng market entry nên ít bị ảnh hưởng hơn limit, nhưng SL slippage trong sóng mạnh vẫn cao.
+- Mock fill lạc quan; Trend dùng market entry nên ít bị ảnh hưởng hơn limit, nhưng SL slippage trong sóng mạnh vẫn cao.
 - Không bật Trend live cùng lúc với thay đổi tham số MVP — nếu kết quả xấu, bạn không biết do cái nào.
 
 ---
@@ -222,13 +222,13 @@ Global position manager là lớp chặn duy nhất, đặt **trước** risk en
 
 ### Giải thích cơ bản
 
-Đây là cổng khoa học của Phase 3. Spec yêu cầu **12 tuần forward** = 4 tuần shadow (đã có) + 8 tuần có lệnh thật trên demo. Lý do: 3–8 lệnh/tuần × 12 tuần ≈ 36–96 lệnh, đủ để expectancy có ý nghĩa.
+Đây là cổng khoa học của Phase 3. Spec yêu cầu **12 tuần forward** = 4 tuần shadow (đã có) + 8 tuần có lệnh thật trên mock. Lý do: 3–8 lệnh/tuần × 12 tuần ≈ 36–96 lệnh, đủ để expectancy có ý nghĩa.
 
-Đừng rút ngắn. 4 tuần demo chỉ cho 12–32 lệnh — đó là lý do spec cấm kết luận Trend từ 4 tuần.
+Đừng rút ngắn. 4 tuần mock chỉ cho 12–32 lệnh — đó là lý do spec cấm kết luận Trend từ 4 tuần.
 
 ### Việc cần làm
 
-1. Chạy 8 tuần demo với Trend có lệnh, giữ nguyên tham số.
+1. Chạy 8 tuần mock với Trend có lệnh, giữ nguyên tham số.
 2. Báo cáo 2 tuần/lần: số lệnh, expectancy, DD, fill rate, slippage.
 3. So sánh với shadow cùng kỳ: fill thật có tệ hơn giả lập không.
 4. Theo dõi riêng long vs short-shadow.
@@ -264,7 +264,7 @@ Global position manager là lớp chặn duy nhất, đặt **trước** risk en
 ### Ghi chú
 
 - Fill rate thật thấp hơn shadow đáng kể là chuyện bình thường; nếu thấp hơn > 30% thì xem lại entry.
-- Không dùng kết quả 4 tuần demo để kết luận Trend có edge (§16.18).
+- Không dùng kết quả 4 tuần mock để kết luận Trend có edge (§16.18).
 
 ---
 
@@ -272,7 +272,7 @@ Global position manager là lớp chặn duy nhất, đặt **trước** risk en
 
 ### Giải thích cơ bản
 
-Trend lên live với **risk nhỏ hơn MVP** (0,2% so với 0,25–0,5%) vì nó mới được chứng minh trên demo, chưa qua thị trường thật với slippage thật.
+Trend lên live với **risk nhỏ hơn MVP** (0,2% so với 0,25–0,5%) vì nó mới được chứng minh trên mock, chưa qua thị trường thật với slippage thật.
 
 Đây là bước cuối của Phase 3. Nếu fail, quay lại shadow, không quay lại "tăng size".
 
@@ -297,7 +297,7 @@ Trend lên live với **risk nhỏ hơn MVP** (0,2% so với 0,25–0,5%) vì n�
 
 - [ ] Trend live với risk 0,2%
 - [ ] PnL tách theo `strategy_id`
-- [ ] Đo slippage riêng, so với demo
+- [ ] Đo slippage riêng, so với mock
 - [ ] Test xung đột trên live (dùng size tối thiểu)
 - [ ] Test kill switch vẫn flat được cả 2 chiến lược
 - [ ] Daily report hiển thị tách 2 chiến lược
@@ -422,7 +422,7 @@ Carry không đánh hướng giá. Bạn **mua spot** coin và **bán perp** cù
 | Mã | Phase con | Trạng thái | Ngày xong | Ghi chú |
 |---|---|---|---|---|
 | P3.0 | Kế thừa shadow | ⬜ Chưa | | |
-| P3.1 | Trend demo, budget 20% | ⬜ Chưa | | |
+| P3.1 | Trend mock, budget 20% | ⬜ Chưa | | |
 | P3.2 | Global position manager | ⬜ Chưa | | |
 | P3.3 | Forward 12 tuần | ⬜ Chưa | | |
 | P3.4 | Trend live 0,2% | ⬜ Chưa | | |

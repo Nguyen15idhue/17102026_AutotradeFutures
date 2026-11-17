@@ -11,9 +11,11 @@ Liên quan: `docs/mvp-binance-futures-bot.md` §7.9, `docs/phase1_task.md` P1.1/
 
 ### 0.1 Vì sao cần container này
 
-Demo Trading của Binance **hỏng ở khâu tạo API key** và `testnet.binancefuture.com` đã bị gộp về `demo.binance.com` (redirect) ⇒ không còn môi trường ảo chính thức nào dùng được.
+**Đây là môi trường demo chính thức của dự án.** Demo Trading của Binance **hỏng ở khâu tạo API key** và `testnet.binancefuture.com` đã bị gộp về `demo.binance.com` (redirect) ⇒ không còn môi trường ảo chính thức nào dùng được.
 
-Nhưng bot **không cần** Binance thật để phát triển. 95% code là: ký request, đặt lệnh, quản lý state, đặt SL, reconcile, restart, alert. Tất cả những thứ đó test được với một **server giả lập chạy cùng Docker network**.
+Từ đây, khi tài liệu nói **"mock"** hoặc **"demo"**, nghĩa là `binance-demo-server` trong repo này — **không phải** `demo.binance.com`.
+
+Bot **không cần** Binance thật để phát triển. 95% code là: ký request, đặt lệnh, quản lý state, đặt SL, reconcile, restart, alert. Tất cả những thứ đó test được với một **server giả lập chạy cùng Docker network**.
 
 ### 0.2 Nguyên tắc thiết kế: "chính xác chứ không phải đầy đủ"
 
@@ -32,9 +34,9 @@ Phân tầng độ trung thực:
 | Hạng mục | Giá trị thật |
 |---|---|
 | REST live | `https://fapi.binance.com` |
-| REST testnet/demo | `https://demo-fapi.binance.com` |
+| REST demo (tham chiếu lịch sử, **không dùng**) | `https://demo-fapi.binance.com` |
 | WS live (market) | `wss://fstream.binance.com` |
-| WS testnet/demo | `wss://demo-fstream.binance.com` |
+| WS demo (tham chiếu lịch sử, **không dùng**) | `wss://demo-fstream.binance.com` |
 | WS user stream | `wss://fstream.binance.com/private/ws/<listenKey>` |
 | API key header | `X-MBX-APIKEY` |
 | Chữ ký | `HMAC SHA256(secretKey, totalParams)`, `totalParams` = query string + body, **signature là param cuối** |

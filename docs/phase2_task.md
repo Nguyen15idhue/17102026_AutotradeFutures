@@ -11,7 +11,7 @@ Phiên bản: 1.0 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-
 
 | Phase | Nội dung | Vốn thật | Chi phí/tháng |
 |---|---|---|---|
-| 1 | MVP: 2 chiến lược + risk engine + dashboard + demo + live 300 USD | 300 USD | 0 USD |
+| 1 | MVP: 2 chiến lược + risk engine + dashboard + mock + live 300 USD | 300 USD | 0 USD |
 | **2 (file này)** | AI gate: 2 LLM đọc tin, phủ quyết hoặc giảm size | giữ 300 USD | **2–7 USD** |
 | 3 | Trend Pullback live + (sau đó) Funding carry | tăng dần | 2–7 USD |
 
