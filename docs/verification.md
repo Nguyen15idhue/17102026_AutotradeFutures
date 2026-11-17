@@ -108,3 +108,29 @@ Nguyên tắc: chỉ ghi thứ đã chạy và có output. Không chép lại t�
 |---|---|
 | 17/11/2026 | Chạy probe lần 1 trên live: key hợp lệ, phí và `-4120` khớp spec; phát hiện minNotional không đồng nhất, balance 4,85 USDT dưới ngưỡng giao dịch. **Cảnh báo `canWithdraw` ban đầu là SAI** — đó là cờ cấp tài khoản; kiểm tra lại bằng `/sapi/v1/account/apiRestrictions` xác nhận `enableWithdrawals = false`. |
 | 17/11/2026 | Đo lại đồng hồ 5 mẫu: lệch **+1.836 ms**, nguyên nhân `w32time` đang `Stopped`. Thêm `scripts/ps/sync-clock.ps1`. Sau khi chạy (nâng quyền): `Running`/`Automatic`, offset **−1 ms**. |
+| 17/11/2026 | Chạy `scripts/py/verify_env.py` (+ `scripts/ps/verify-p1.0.ps1`) trên **mock** (`binance-demo-server`, `MOCK_API_SECRET` mặc định): **16/16 PASS** (13 mục §4.3 + weight header + Telegram reachability). Chi tiết xem §6. |
+
+---
+
+## 6. Kết quả P1.0 trên mock (17/11/2026)
+
+Chạy `python scripts/py/verify_env.py` với mock local (`MARKET_MODE=proxy`), secret mock mặc định. Không dùng key live.
+
+| # | Mục (§4.3) | Kết quả | Bằng chứng |
+|---|---|---|---|
+| 1 | REST host hoạt động | ✅ | `serverTime=1794926197884`, offset local −13 ms |
+| 2 | WS host (user stream) | ✅ | `listenKey` 60 ký tự, WS `/ws/<key>` nhận `ORDER_TRADE_UPDATE` (8 event); `POST /_admin/ws/drop` → reconnect key cũ OK, keepalive 200 |
+| 3 | Algo order | ✅ | `algoId=2000002` (`CONDITIONAL`/`STOP_MARKET`/`closePosition=true`) |
+| 4 | Phí thực tế | ✅ | maker `0.000200` · taker `0.000500` — khớp spec |
+| 5 | Min notional | ✅ | BTC 50 · ETH/LINK 20 · còn lại 5 (USDT) — khớp đo live §2 |
+| 6 | Tick/step | ✅ | đủ 10 symbol (vd BTC `0.10`/`0.001`) |
+| 7 | Rate limit | ✅ | header weight có trả về (giá trị `None` ở response public này — engine vẫn phải đọc ở response signed; test ở P1.1) |
+| 8 | Algo migration | ✅ | `STOP_MARKET` vào `/fapi/v1/order/test` → **`-4120`** |
+| 9 | `closePosition` tự hủy | ✅ | đóng position bằng market → algo chuyển `EXPIRED` |
+| 10 | `ALGO_UPDATE` | ✅ | nhận event `ALGO_UPDATE` trên user stream |
+| 11 | Data lịch sử | ✅ | tải `BTCUSDT-1m-2026-11-15.zip` từ `data.binance.vision` (63.140 B) |
+| 12 | Funding lịch sử | ✅ | 3 bản ghi `fundingRate` BTCUSDT |
+| 13 | Liquidation bracket | ✅ | BTCUSDT bậc 1: leverage 125x, MMR 0,004 |
+| — | Telegram reachability | ✅ | `api.telegram.org` → 200; tin test tới group OK (`msg_id=6`) |
+
+**Hạn chế đã biết:** mock **không có market WS** (chỉ có user stream `/ws/{key}`) — WS market (`kline_1m`, `markPrice`...) của engine sẽ test bằng stub ở P1.1, đối chiếu live ở P1.8.

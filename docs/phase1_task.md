@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.0 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.6
+Phiên bản: 1.1 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.6
 
 ---
 
@@ -107,9 +107,9 @@ Trước khi viết dòng code nào, bạn phải chứng minh **những thứ t
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| 13 mục xác minh | ⬜ Chưa | | |
-| Mock API key | ⬜ Chưa | | |
-| Live sub-account (chưa nạp tiền) | ⬜ Chưa | | |
+| 13 mục xác minh | ✅ Xong (mock) | `docs/verification.md` §6, 16/16 PASS 17/11/2026 | 17/11/2026 |
+| Mock API key | ✅ | secret mock mặc định (`mock-secret`), key `verify-key` — không dùng key live | 17/11/2026 |
+| Live sub-account (chưa nạp tiền) | ✅ | key an toàn (`enableWithdrawals=false`), balance 4,85 USDT — xem `verification.md` §3 | 17/11/2026 |
 | Docker skeleton healthy | ⬜ Chưa | | |
 | `.env` + `.env.example` | ⬜ Chưa | | |
 
@@ -173,6 +173,12 @@ Reconcile là phần quan trọng nhất: bot giữ state trong SQLite, sàn gi�
 - Đừng đặt SL bằng `STOP_MARKET` qua `/fapi/v1/order` — sẽ nhận `-4120`. Dùng `/fapi/v1/algoOrder` với `algoType=CONDITIONAL`.
 - `closePosition=true` để SL tự khớp size hiện tại (chịu được partial fill và ADL).
 - WS chết không được làm bot "mù": nếu market data cũ > 3s thì cấm mở lệnh mới.
+- Soak 72h chạy trên **VPS sẵn có** (mock + engine cùng compose, không cần key Binance, không chờ live).
+  Được hoãn sang chạy song song với P1.2, với điều kiện: (1) giữ trạng thái ⬜ cho tới khi có log/report/hash;
+  (2) đóng băng code `exchange/` trong lúc soak — sửa adapter thì chạy lại từ đầu;
+  (3) bắt buộc pass trước P1.7; (4) bài soak phải có traffic thật: ≥ 20–30 vòng mở/đóng lệnh,
+  ≥ 5 lần drop WS + reconcile diff = 0, 1 lần restart giữa position, qua mốc renew listenKey 30 phút,
+  1 lần inject 429, 1 lần gửi trùng `clientOrderId`; log RSS + WAL size mỗi giờ.
 
 ---
 
@@ -580,3 +586,4 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 | Ngày | Phiên bản | Nội dung |
 |---|---|---|
 | 17/11/2026 | 1.0 | Tạo mới, tách từ spec v1.6 |
+| 17/11/2026 | 1.1 | P1.1: chốt soak 72h chạy trên VPS, cho phép hoãn song song với P1.2 kèm 4 điều kiện + tiêu chí traffic tối thiểu |
