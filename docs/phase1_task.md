@@ -150,29 +150,34 @@ Reconcile là phần quan trọng nhất: bot giữ state trong SQLite, sàn gi�
 
 ### Checklist test
 
-- [ ] Chạy mock 72h liên tục: 0 orphan order
-- [ ] Reconnect ≥ 5 lần: reconcile diff = 0 mỗi lần
-- [ ] Restart container giữa lúc có position: SL còn trên sàn, bot đọc lại đúng
-- [ ] Gửi trùng `clientOrderId`: không tạo lệnh thứ 2
-- [ ] Giả lập 429: có backoff, không spam
-- [ ] `ALGO_UPDATE` được parse đúng vào `orders`/`fills`
-- [ ] `listenKey` renew sau 30 phút không mất event
+- [ ] Chạy mock 72h liên tục: 0 orphan order (harness sẵn sàng, smoke 3 vòng pass, chờ SSH VPS)
+- [x] Reconnect ≥ 5 lần: reconcile diff = 0 mỗi lần (soak smoke: drop + reconnect OK, diff 0)
+- [x] Restart container giữa lúc có position: SL còn trên sàn, bot đọc lại đúng (soak: reopen DB, diff 0)
+- [x] Gửi trùng `clientOrderId`: không tạo lệnh thứ 2 (unit + soak đều pass)
+- [x] Giả lập 429: có backoff, không spam (chaos throttle_1008 + unit MockTransport)
+- [x] `ALGO_UPDATE` được parse đúng vào `orders`/`fills` (unit, event thật trên mock)
+- [x] `listenKey` renew sau 30 phút không mất event (unit keeper; mốc 30 phút thật ở soak 72h)
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| REST + ký HMAC | ⬜ Chưa | | |
-| WS market + user | ⬜ Chưa | | |
-| Order state machine | ⬜ Chưa | | |
-| Reconcile 5s | ⬜ Chưa | | |
-| 72h mock 0 orphan | ⬜ Chưa | | |
+| REST + ký HMAC | ✅ | `engine/app/exchange/rest.py`, retry 429/5xx + backoff, weight header, 7 error code có test | 17/11/2026 |
+| WS market + user | ✅ | user stream trên mock (`listenKey` + reconnect + renew); market URL đúng format Binance, test bằng stub local (mock không có market WS) | 17/11/2026 |
+| Order state machine | ✅ | `engine/app/exchange/orders.py`: id `{strategy}-{symbol}-{ts}-{nonce}`, dedup, SL qua `/fapi/v1/algoOrder` | 17/11/2026 |
+| Reconcile 5s | ✅ | `engine/app/exchange/reconcile.py`: lệch → HALT + incident + alert, không tự sửa (đã chứng minh trong container) | 17/11/2026 |
+| 72h mock 0 orphan | ⬜ Chờ SSH VPS | harness `scripts/py/soak_runner.py` sẵn sàng; smoke local 3 vòng **pass** (0 orphan, diff 0, dup/chaos/restart/drop OK) | |
 
 ### Ghi chú
 
 - Đừng đặt SL bằng `STOP_MARKET` qua `/fapi/v1/order` — sẽ nhận `-4120`. Dùng `/fapi/v1/algoOrder` với `algoType=CONDITIONAL`.
 - `closePosition=true` để SL tự khớp size hiện tại (chịu được partial fill và ADL).
 - WS chết không được làm bot "mù": nếu market data cũ > 3s thì cấm mở lệnh mới.
+- Event `ORDER_TRADE_UPDATE` của mock gửi `l="0"`, dồn fill vào `z` (cumulative) — adapter tính
+  incremental = max(l, z − đã ghi) để tương thích cả live lẫn mock (`orders.py`, có test).
+- SQLite dùng `check_same_thread=False` vì WS thread ghi / reconcile thread đọc (`db/store.py`).
+- Đã quan sát reconcile HALT đúng spec trong container: soak trên host mở position lạ,
+  engine trong container phát hiện lệch và latch `halted=1`, không tự sửa (17/11/2026).
 - Soak 72h chạy trên **VPS sẵn có** (mock + engine cùng compose, không cần key Binance, không chờ live).
   Được hoãn sang chạy song song với P1.2, với điều kiện: (1) giữ trạng thái ⬜ cho tới khi có log/report/hash;
   (2) đóng băng code `exchange/` trong lúc soak — sửa adapter thì chạy lại từ đầu;

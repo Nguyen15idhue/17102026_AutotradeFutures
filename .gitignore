@@ -76,3 +76,7 @@ tmp/
 # Graphify — artifact sinh tự động (xem AGENTS.md §13)
 # ============================================================
 graphify-out/
+
+# Soak report cuc bo (cho VPS, khong commit)
+soak-report.json
+

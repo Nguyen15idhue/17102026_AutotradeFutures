@@ -1,2 +1,4 @@
-# P1.1 se them: httpx, websockets, pydantic, pytest, ruff.
-# P1.0 skeleton: khong can dependency ngoai stdlib.
+httpx>=0.27
+websockets>=14
+pytest>=8
+ruff>=0.8
