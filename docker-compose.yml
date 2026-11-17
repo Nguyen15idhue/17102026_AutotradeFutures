@@ -95,7 +95,7 @@ services:
     environment:
       TZ: UTC
       SOAK_BASE_URL: http://binance-demo-server:8080
-      SOAK_COMMIT: ""
+      SOAK_COMMIT: ${SOAK_COMMIT:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID:-}

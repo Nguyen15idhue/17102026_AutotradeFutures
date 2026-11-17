@@ -143,6 +143,9 @@ class CommandPoller:
             pass
 
     def start(self) -> None:
+        from app.ops.log import log as _log
+
+        _log("info", "tgcmd.start", chat_set=bool(self._chat))
         self._thread = threading.Thread(target=self._loop, name="tgcmd", daemon=True)
         self._thread.start()
 
