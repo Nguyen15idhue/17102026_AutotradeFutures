@@ -1002,3 +1002,77 @@ Song song: retry demo mỗi tuần; nếu hoạt động lại → 4 tuần demo
 | Ngày | Phiên bản | Nội dung |
 |---|---|---|
 | 17/11/2026 | 1.0 | Tạo mới; thông số endpoint lấy từ developers.binance.com (USDⓈ-M Futures), xác minh demo REST/WS host, Algo order, ALGO_UPDATE schema |
+| 17/11/2026 | 1.1 | **Hoàn tất Phase 0 (M0.1–M0.11)**: 104 test pass, container healthy 45 MB RAM, CI xanh. Xem báo cáo R0 bên dưới |
+
+---
+
+## 11. Báo cáo R0 — kết quả Phase 0
+
+### 11.1 Bảng bước
+
+| Mã | Nội dung | Trạng thái | Test | Commit |
+|---|---|---|---|---|
+| B0 | Bootstrap repo + môi trường | ✅ | — | `f328937` |
+| M0.1 | Contract + fixtures thật + golden vector | ✅ | 8 | `3373166` |
+| M0.2 | Skeleton container + compose + `/_debug` | ✅ | — | `ae74820` |
+| M0.3 | Auth HMAC + timing + weight + 429/418 | ✅ | 15 | `ae74820` |
+| M0.4 | Market data proxy/replay/synthetic | ✅ | 13 | `26961b4` |
+| M0.5 | Account state + SQLite | ✅ | 14 | `0e5e272` |
+| M0.6 | Order engine | ✅ | 17 | `80033c0` |
+| M0.7 | Algo engine (SL/TP) | ✅ | 15 | `c259b33` |
+| M0.8 | User data stream (WS) | ✅ | 7 | `029e2f3` |
+| M0.9 | Chaos / fault injection | ✅ | 10 | `c79659c` |
+| M0.10 | Persistence + snapshot/restore | ✅ | 7 | *(gộp vào M0.11)* |
+| M0.11 | Harness + E2E + CI + script PS | ✅ | 98→**104** | `d48fd8b` |
+
+**Quy mô:** 2.558 dòng code Python, 1.069 dòng test, 5 file script PowerShell.
+
+### 11.2 Mười cổng nghiệm thu (§7)
+
+| # | Cổng | Kết quả |
+|---|---|---|
+| 1 | Compose healthy, RAM < 400 MB | ✅ `healthy`, **45,5 MiB** / 256 MiB |
+| 2 | 24h nén, reconcile 0, 100% position có SL | ⚠️ **một phần** — bất biến "SL tồn tại sau entry" test được; reconcile thật cần engine (P1.1) |
+| 3 | Golden vector pass, sai secret/thứ tự → `-1022` | ✅ |
+| 4 | STOP/TP qua `/order` → `-4120`; qua `/algoOrder` → `algoId` | ✅ |
+| 5 | Đóng position → SL còn lại `EXPIRED` | ✅ |
+| 6 | Restart giữa lúc có position → state nguyên | ✅ hash `0d721a8b1d` trước/sau giống hệt |
+| 7 | Bơm lỗi 30% + WS drop → 0 double order | ⚠️ **một phần** — chaos có, WS drop chưa; "0 double order" cần engine |
+| 8 | Determinism: cùng seed → cùng state | ✅ `counts` giống; hash khác do `orderId` tăng (đúng thiết kế) |
+| 9 | `replay` chạy offline | ✅ CI + test không gọi internet |
+| 10 | Không secret trong image | ✅ Dockerfile chỉ `COPY app`, `.dockerignore` che `.env` |
+
+Hai cổng đánh dấu ⚠️ là **giới hạn đã biết**: chúng cần engine để kiểm chứng đầy đủ, không phải lỗi của mock. Ghi rõ để không ai đọc thành "đã pass hết".
+
+### 11.3 Lệnh tự chạy lại
+
+```powershell
+pwsh scripts\ps\env-check.ps1
+powershell -ExecutionPolicy Bypass -File scripts\ps\step-verify.ps1 -Step all
+docker compose up -d --build && docker stats --no-stream
+curl http://127.0.0.1:8081/fapi/v1/ping
+start http://127.0.0.1:8081/_debug
+```
+
+### 11.4 Điều mock KHÔNG kiểm chứng được
+
+1. Matching engine thật (queue, partial fill) → fill của mock lạc quan hơn.
+2. Latency/jitter mạng thật, sàn bảo trì diện rộng.
+3. ADL, STP, thanh lý tự động.
+4. Hành vi "Binance có chấp nhận payload hay không" → **bắt buộc live smoke test ≤ 0.05 USD**.
+5. Nén thời gian (`SPEED`) chỉ để tìm bug, **không** kết luận edge.
+6. `TRAILING_STOP_MARKET`, batch orders, WebSocket API — Tier C, không có.
+
+### 11.5 Bước kế tiếp
+
+**P1.1 Exchange adapter** (`docs/phase1_task.md`) — viết REST/WS client của engine trỏ vào `BINANCE_BASE_URL=http://binance-demo-server:8080`.
+
+Cần user quyết trước khi sang P1:
+
+- Engine nằm trong compose với service name `engine` (đúng thiết kế §7.9)?
+- Có giữ `MARKET_MODE=proxy` cho paper trade, `replay` cho CI không?
+- Có cần bổ sung `WS_DROP_EVERY` (chaos cho WS) trước khi làm adapter không?
+
+### 11.6 Tuyên bố phạm vi
+
+Phase 0 **chỉ chứng minh mock cư xử đúng hợp đồng API**. Nó **không** chứng minh engine đúng, không chứng minh chiến lược có lãi, và **không** cho phép chạy live.
