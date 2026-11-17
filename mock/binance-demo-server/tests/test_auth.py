@@ -186,3 +186,13 @@ def signed_delete(path: str, params: dict, secret: str = SECRET, key: str | None
     if key:
         headers["X-MBX-APIKEY"] = key
     return client.delete(f"{path}?{qs}&signature={_sig(secret, qs)}", headers=headers)
+
+def signed_put(path: str, body: dict, secret: str = SECRET, key: str | None = "mock-key"):
+    params = {k: str(v) for k, v in body.items()}
+    params["timestamp"] = str(state.now_ms())
+    params["recvWindow"] = "5000"
+    qs = "&".join(f"{k}={v}" for k, v in params.items())
+    headers = {}
+    if key:
+        headers["X-MBX-APIKEY"] = key
+    return client.put(f"{path}?{qs}&signature={_sig(secret, qs)}", headers=headers)

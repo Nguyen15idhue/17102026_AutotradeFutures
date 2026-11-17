@@ -12,12 +12,14 @@ from .api_algo import router as algo_router
 from .api_core import router as core_router
 from .api_market import router as market_router
 from .api_order import router as order_router
+from .api_streams import router as stream_router
 from .auth import LIMITS, is_order_route, weight_for
 from .config import CFG
 from .errors import BinanceError
 from .market import MARKET
 from .orders import ENGINE
 from .store import STORE
+from .streams import HUB
 
 logging.basicConfig(
     level=getattr(logging, CFG.log_level, logging.INFO),
@@ -98,6 +100,7 @@ def create_app() -> FastAPI:
     app.include_router(account_router)
     app.include_router(order_router)
     app.include_router(algo_router)
+    app.include_router(stream_router)
 
     async def _engine_loop() -> None:
         import asyncio
@@ -105,6 +108,7 @@ def create_app() -> FastAPI:
             try:
                 ENGINE.tick()
                 ALGO.tick()
+                HUB.check_expired()
             except Exception:  # pragma: no cover
                 log.exception("engine tick loi")
             await asyncio.sleep(1.0)

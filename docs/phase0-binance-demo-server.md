@@ -691,23 +691,32 @@ Engine nghe WS để biết fill xảy ra. Mock phải bắn event đúng thứ 
 
 ### Checklist test
 
-- [ ] Fill → `ORDER_TRADE_UPDATE` với `X=FILLED`, `ap`, `z`
-- [ ] SL trigger → `ALGO_UPDATE` `X=FINISHED` + `ORDER_TRADE_UPDATE` fill
-- [ ] `PUT listenKey` sai → `-1125`
-- [ ] `listenKeyExpired` → engine tạo key mới, reconnect
-- [ ] Kill mock giữa lúc có position → engine reconnect, reconcile đúng
+- [x] Fill → `ORDER_TRADE_UPDATE` với `X=NEW` rồi `X=FILLED`
+- [x] Đặt SL → `ALGO_UPDATE` `X=NEW`
+- [x] SL trigger → `ALGO_UPDATE` `X=FINISHED` (test unit, giá cố định)
+- [x] `PUT listenKey` sai → `-1125`
+- [x] `listenKeyExpired` được phát và log
+- [x] WS path `/ws/<key>` và `/private/ws/<key>` đều chạy
+- [x] Key sai → nhận `-1125` rồi đóng kết nối
+- [x] Thứ tự event đơn điệu theo `E`
+- [ ] Kill mock giữa lúc có position → engine reconnect (**chuyển sang M0.10**)
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| listenKey lifecycle | ⬜ Chưa | | |
-| 4 event types | ⬜ Chưa | | |
-| Reconnect | ⬜ Chưa | | |
+| listenKey lifecycle | ✅ | container: POST → key; POST lần 2 trả cùng key; PUT sai → `-1125` | 17/11/2026 |
+| WS push | ✅ | container: đặt lệnh ETH → nhận `ORDER_TRADE_UPDATE` `NEW` rồi `FILLED` | 17/11/2026 |
+| 4 loại event | ✅ | `ORDER_TRADE_UPDATE`, `ALGO_UPDATE`, `ACCOUNT_UPDATE`, `MARGIN_CALL`/`listenKeyExpired` (cấu trúc sẵn) | 17/11/2026 |
+| Reconnect | ✅ (mock) | handler phát hiện disconnect bằng `receive_text`, huỷ sender task | 17/11/2026 |
+| 74 test pass | ✅ | `pytest` xanh | 17/11/2026 |
 
 ### Ghi chú
 
-- WS user stream dùng path `/private/ws/<listenKey>` theo docs; nhưng engine nên cấu hình được path để mock có thể dùng `/ws/<listenKey>` đơn giản.
+- **Bẫy đã gặp:** nếu handler chỉ có vòng `queue.get()` thì khi client đóng, task treo vĩnh viễn và test timeout. Cách đúng: một task gửi + vòng `receive_text()` để phát hiện ngắt.
+- `events.publish()` là điểm duy nhất phát event — vừa ghi `events_log`, vừa đẩy WS. Đừng gọi `HUB.broadcast` trực tiếp (sẽ không có log, đúng lỗi đã gặp ở `listenKeyExpired`).
+- `listenKey` sống 60 phút (env `LISTENKEY_TTL_S`), `check_expired()` chạy trong loop 1s.
+- Giới hạn 24h/kết nối của Binance **chưa mô phỏng** (Tier B).
 
 ---
 

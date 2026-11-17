@@ -56,6 +56,7 @@ class Config:
         self.order_limit_10s = _i("ORDER_LIMIT_10S", 300)
         self.order_limit_1m = _i("ORDER_LIMIT_1M", 1200)
         self.ban_seconds = _i("BAN_SECONDS", 120)
+        self.listenkey_ttl_s = _i("LISTENKEY_TTL_S", 3600)
 
         # --- ha tang ---
         self.db_path = _s("DB_PATH", "/app/data/mock.db")
