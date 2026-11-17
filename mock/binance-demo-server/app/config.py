@@ -50,6 +50,8 @@ class Config:
         self.fail_codes = _s("FAIL_CODES", "")
         self.latency_ms = _i("LATENCY_MS", 0)
         self.ws_drop_every = _i("WS_DROP_EVERY", 0)
+        self.unknown_503 = _b("CHAOS_UNKNOWN_503", False)
+        self.throttle_1008 = _b("CHAOS_THROTTLE_1008", False)
 
         # --- gioi han tan suat (tach rieng de test de dieu chinh) ---
         self.weight_limit_1m = _i("WEIGHT_LIMIT_1M", 2400)

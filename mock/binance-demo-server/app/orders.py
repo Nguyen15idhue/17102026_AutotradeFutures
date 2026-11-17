@@ -101,6 +101,16 @@ class Engine:
         if v["close_position"]:
             raise E.err(E.UNSUPPORTED_PARAM, p="closePosition")
 
+        # -1008: throttle he thong, mien tru reduce-only / close-position
+        from .chaos import CHAOS
+        if CHAOS.throttle_1008 and not v["reduce_only"]:
+            raise E.BinanceError(
+                -1008,
+                "Request throttled by system-level protection. "
+                "Reduce-only/close-position orders are exempt. Please try again.",
+                503,
+            )
+
         if v["reduce_only"]:
             self._check_reduce_only(v["symbol"], v["side"])
 

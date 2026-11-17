@@ -14,6 +14,7 @@ from .api_market import router as market_router
 from .api_order import router as order_router
 from .api_streams import router as stream_router
 from .auth import LIMITS, is_order_route, weight_for
+from .chaos import CHAOS
 from .config import CFG
 from .errors import BinanceError
 from .market import MARKET
@@ -28,6 +29,7 @@ logging.basicConfig(
 log = logging.getLogger("mock")
 
 _PUBLIC = ("/_debug", "/healthz", "/")
+_ADMIN_PREFIX = "/_admin"
 
 
 def _rate_headers(ip: str, used: int) -> dict[str, str]:
@@ -54,10 +56,22 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def _limits(request: Request, call_next):
         path = request.url.path
-        if path in _PUBLIC or path.startswith("/_debug"):
+        if path in _PUBLIC or path.startswith("/_debug") or path.startswith(_ADMIN_PREFIX):
             return await call_next(request)
 
         ip = request.client.host if request.client else "0.0.0.0"
+
+        # --- fault injection ---
+        injected = None if path == "/fapi/v1/ping" else CHAOS.roll()
+        if injected is not None:
+            status, body = injected
+            resp = JSONResponse(status_code=status, content=body)
+            for k, v in _rate_headers(ip, LIMITS.used_weight(ip)).items():
+                resp.headers[k] = v
+            return resp
+        if CHAOS.latency_ms > 0:
+            import asyncio
+            await asyncio.sleep(CHAOS.latency_ms / 1000)
 
         if LIMITS.is_banned(ip):
             resp = JSONResponse(
@@ -120,6 +134,14 @@ def create_app() -> FastAPI:
             MARKET.boot()
         if STORE.conn is None:
             STORE.init(CFG.db_path, CFG.initial_balance)
+        if CFG.fail_rate > 0 or CFG.latency_ms > 0:
+            CHAOS.configure({
+                "fail_rate": CFG.fail_rate,
+                "latency_ms": CFG.latency_ms,
+                "codes": [int(c) for c in CFG.fail_codes.split(",") if c.strip().isdigit()],
+                "throttle_1008": CFG.throttle_1008,
+                "unknown_503": CFG.unknown_503,
+            })
         import asyncio
         app.state.engine_task = asyncio.create_task(_engine_loop())
         log.info(

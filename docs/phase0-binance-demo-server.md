@@ -745,24 +745,32 @@ Một mock "hoàn hảo" không bao giờ lỗi là mock vô dụng: bug xử l�
 
 ### Checklist test
 
-- [ ] `FAIL_RATE=0.2` → engine có retry, không mất lệnh
-- [ ] 503 unknown → engine query order, không đặt trùng
-- [ ] `-1008` với lệnh thường → fail; với `closePosition=true` → pass
-- [ ] `WS_DROP_EVERY=10` → engine reconnect, reconcile
-- [ ] `-1021` bơm → engine sync clock rồi retry
+- [x] `fail_rate=1` → mọi request lỗi theo code cấu hình
+- [x] `fail_rate=0.3` → ~70% thành công trên 100 request
+- [x] `unknown_503` → 503 với đúng message "Unknown error, please check your request or try again later."
+- [x] `latency_ms` bơm được (đo ≥ 100ms với 120ms)
+- [x] `-1008` chặn lệnh thường, **miễn** reduce-only
+- [x] `/fapi/v1/ping`, `/_admin`, `/_debug` không bị ảnh hưởng
+- [x] `POST /_admin/reset` tắt chaos ngay
+- [ ] `WS_DROP_EVERY` → chưa implement (để P1 khi có engine)
+- [ ] `-1021` bơm → engine sync clock (thuộc engine, P1)
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| Chaos endpoint | ⬜ Chưa | | |
-| 429/418 | ⬜ Chưa | | |
-| 503 unknown | ⬜ Chưa | | |
-| -1008 exemption | ⬜ Chưa | | |
+| Chaos endpoint | ✅ | container: `/_admin/chaos` → `/_admin/reset` hoạt động | 17/11/2026 |
+| 503 unknown | ✅ | container: `503 Unknown error, please check your request or try again later.` | 17/11/2026 |
+| `-1008` exemption | ✅ | container: lệnh thường → `503 -1008`; test reduce-only → 200 | 17/11/2026 |
+| Ping không bị ảnh hưởng | ✅ | container: ping 200 khi `fail_rate=1.0` | 17/11/2026 |
+| 84 test pass | ✅ | `pytest` xanh, `ruff` sạch | 17/11/2026 |
 
 ### Ghi chú
 
-- Test quan trọng nhất ở đây: **503 "Unknown error" khi đặt lệnh** → engine phải query lại thay vì gửi lại. Nếu gửi lại, bạn sẽ có 2 vị thế ở live.
+- RNG **có seed** (`SEED`) + đếm thứ tự → cùng kịch bản cho cùng kết quả, cần cho test hồi quy.
+- `ping` được **miễn chaos** có chủ ý: nếu healthcheck bị bơm lỗi, Docker restart container liên tục và phá chính test.
+- `-1008` kiểm ở tầng endpoint (không phải middleware) vì cần đọc `reduceOnly` từ body; đọc body trong middleware sẽ làm hỏng request downstream.
+- Test quan trọng nhất của bước này: **503 "Unknown error" khi đặt lệnh** → engine phải query lại `GET /fapi/v1/order`, không gửi lại, nếu không sẽ có 2 vị thế ở live.
 
 ---
 

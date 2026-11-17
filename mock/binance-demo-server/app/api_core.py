@@ -5,9 +5,28 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 from . import state
+from .auth import LIMITS
+from .chaos import CHAOS
 from .debug_page import HTML
 
 router = APIRouter()
+
+
+@router.post("/_admin/chaos")
+async def admin_chaos(body: dict) -> dict:
+    return CHAOS.configure(body)
+
+
+@router.post("/_admin/reset")
+async def admin_reset() -> dict:
+    LIMITS.reset()
+    CHAOS.reset()
+    return {"status": "reset"}
+
+
+@router.get("/_admin/state")
+async def admin_state() -> dict:
+    return {"chaos": CHAOS.snapshot(), "limits": LIMITS.snapshot("127.0.0.1")}
 
 
 @router.get("/fapi/v1/ping")
