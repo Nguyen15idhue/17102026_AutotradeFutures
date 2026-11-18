@@ -42,9 +42,16 @@ class OrderManager:
 
     # -- dat lenh ------------------------------------------------------------
     def place(
-        self, symbol: str, side: str, otype: str, qty: str, price: str = "", client_id: str = ""
+        self,
+        symbol: str,
+        side: str,
+        otype: str,
+        qty: str,
+        price: str = "",
+        client_id: str = "",
+        time_in_force: str = "",
     ) -> dict:
-        """Lenh thuong qua /fapi/v1/order."""
+        """Lenh thuong qua /fapi/v1/order. time_in_force=GTX cho post-only (MR)."""
         return self._send(
             "/fapi/v1/order",
             {
@@ -53,8 +60,25 @@ class OrderManager:
                 "type": otype,
                 "quantity": qty,
                 **({"price": price} if price else {}),
+                **({"timeInForce": time_in_force} if time_in_force else {}),
                 "newClientOrderId": client_id or new_client_id(self._strategy, symbol),
             },
+        )
+
+    def fetch_order(self, symbol: str, client_id: str) -> dict:
+        """Doc trang thai lenh theo clientOrderId (dung sau fill de dat SL ngay)."""
+        return self._rest.get("/fapi/v1/order", {"symbol": symbol, "origClientOrderId": client_id})
+
+    def cancel_order(self, symbol: str, client_id: str) -> dict:
+        """Huy lenh thuong (trailing/entry het TTL)."""
+        return self._rest.delete(
+            "/fapi/v1/order", {"symbol": symbol, "origClientOrderId": client_id}
+        )
+
+    def cancel_algo(self, symbol: str, client_id: str) -> dict:
+        """Huy algo (SL/TP) — route rieng, KHONG dung /fapi/v1/order."""
+        return self._rest.delete(
+            "/fapi/v1/algoOrder", {"symbol": symbol, "clientAlgoId": client_id}
         )
 
     def place_algo(

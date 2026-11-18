@@ -434,7 +434,7 @@ Make-before-break nghĩa là: đặt SL mới **trước**, xóa SL cũ **sau**.
 | Risk engine đủ limit | ✅ | `risk/limits.py` fail-fast 18 lý do, `risk/types.py` thuần dữ liệu; 19 test `test_risk_limits.py` (mỗi lý do 1 ca + thứ tự) | 18/11/2026 |
 | Slot/chiến lược + correlated cap | ✅ | `slot_global`, `slot_strategy`, `correlated_risk` (fail-closed nhóm `""`), `already_open`; test cùng nhóm chặn / khác nhóm cho qua | 18/11/2026 |
 | Sizing + rounding + minNotional reject | ✅ | `risk/sizing.py` floor step + `round_price` tick; `meta.risk_usd` không vượt risk/lệnh; dưới minNotional → **huỷ**, không tăng size; 13 test `test_risk_sizing.py` | 18/11/2026 |
-| Executor SL/TP/trailing (cả short) | ⬜ Chưa | | |
+| Executor SL/TP/trailing (cả short) | 🟡 | Entry + SL + TP xong: HTTP thứ tự risk → place → fetch fill → SL `STOP_MARKET closePosition` (short = BUY stop trên giá) → TP chỉ MR; SL trong <300ms sau fill (test đo monotonic); 11 test `test_executor.py`; trailing ở S5 | 18/11/2026 |
 | Kill switch 3 cấp | ⬜ Chưa | | |
 | 11 test injection pass | ⬜ Chưa | | |
 
