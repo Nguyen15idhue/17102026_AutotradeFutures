@@ -20,10 +20,11 @@ CFG = load_cfg(ROOT / "config" / "mvp.mock.yaml")
 class RecoverRest(FakeRest):
     """Fake REST cho recovery: positionRisk + openAlgoOrders theo tham so."""
 
-    def __init__(self, positions=None, algos=None):
+    def __init__(self, positions=None, algos=None, algo_dict: bool = False):
         super().__init__()
         self.positions = positions or []
         self.algos = algos or []
+        self.algo_dict = algo_dict
 
     def get(self, path, params=None, signed=True, max_tries=4):
         if path == "/fapi/v2/positionRisk":
@@ -31,6 +32,8 @@ class RecoverRest(FakeRest):
             return self.positions
         if path == "/fapi/v1/openAlgoOrders":
             self.calls.append(("GET", path, {}, 0.0))
+            if self.algo_dict:
+                return {"total": len(self.algos), "orders": self.algos}
             return self.algos
         return super().get(path, params, signed, max_tries)
 
@@ -119,6 +122,22 @@ def test_recovery_keeps_existing_sl(tmp_path):
     before = len(rrest.calls)
     rep = recovery.recover(con, rrest, CFG, ex=ex)
     assert rep["repaired_sl"] == 0
+    assert [c for c in rrest.calls[before:] if c[0] == "POST"] == []
+    con.close()
+
+
+def test_recovery_keeps_existing_sl_dict_shape(tmp_path):
+    """Mock/Binance tra {"total","orders"} — doc dung shape nay, khong dat SL trung."""
+    con, rest, ex = _setup(tmp_path)
+    _open_position(con, rest, ex)
+    rrest = RecoverRest(
+        positions=[{"symbol": "BTCUSDT", "positionAmt": "0.750"}],
+        algos=[{"symbol": "BTCUSDT", "type": "STOP_MARKET", "algoStatus": "NEW"}],
+        algo_dict=True,
+    )
+    before = len(rrest.calls)
+    rep = recovery.recover(con, rrest, CFG, ex=ex)
+    assert rep["repaired_sl"] == 0 and rep["halted"] == 0
     assert [c for c in rrest.calls[before:] if c[0] == "POST"] == []
     con.close()
 

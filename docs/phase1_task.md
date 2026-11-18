@@ -437,7 +437,8 @@ Make-before-break nghĩa là: đặt SL mới **trước**, xóa SL cũ **sau**.
 | Executor SL/TP/trailing (cả short) | ✅ | Thứ tự risk → place → fetch fill → SL (`STOP_MARKET closePosition`, short = BUY stop trên giá) → TP chỉ MR; SL trong <300ms sau fill (đo monotonic); trailing make-before-break chứng minh `place` trước `cancel`; cancel fail → HALT; 11 test `test_executor.py` | 18/11/2026 |
 | Trailing + recovery | ✅ | `trail()` đặt SL mới trước rồi cancel cũ, cập nhật `positions.sl/sl_id`; `close()` market `reduceOnly=true` → state CLOSED; `recovery.recover()` đặt lại SL thiếu, DB/exchange lệch → HALT + incident; 8 test `test_recovery.py` | 18/11/2026 |
 | Kill switch 3 cấp | ✅ | `ops/commands.py` 4 action (pause/resume/flatten/stop), action lạ → `REJECTED` + incident; pause chặn entry (`paused` trong risk); flatten đóng hết; stop set `halted=1`; ack `done_ms`; 6 test `test_killswitch.py`, đo < 2s | 18/11/2026 |
-| 11 test injection pass | 🟡 | 13 mục checklist có test tương ứng rải trong `test_config`/`test_risk_limits`/`test_risk_sizing`/`test_executor`/`test_recovery`/`test_killswitch`/`test_wiring` (206 test tổng); bảng đối chiếu 13→test ở Ghi chú | 18/11/2026 |
+| 11 test injection pass | 🟡 | 13 mục checklist có test tương ứng rải trong `test_config`/`test_risk_limits`/`test_risk_sizing`/`test_executor`/`test_recovery`/`test_killswitch`/`test_wiring` (207 test tổng); bảng đối chiếu 13→test ở Ghi chú | 18/11/2026 |
+| Integration trên mock | ✅ | `scripts/ps/p1.3-check.ps1 -Mode All` → test 207 pass; **SL 5ms sau fill**; **orphan sau close = 0**; **kill switch 23ms**, halted, orphan = 0 (18/11/2026) | 18/11/2026 |
 
 ### Ghi chú
 
@@ -447,6 +448,9 @@ Make-before-break nghĩa là: đặt SL mới **trước**, xóa SL cũ **sau**.
 - `margin_usage_max: 0.60`: với TK nhỏ, margin cạn **trước** risk cap. Trên 300 USD: MR stop ~0,4% → notional ~188 → margin ~63/lệnh → chỉ 2 lệnh vừa cap 60%.
 - Cảnh báo mềm khi `stop% < 0,5%` — notional > 2× vốn/lệnh, phí và slippage ăn tỷ lệ R xấu hơn nhiều.
 - Short SL là buy-stop: bắt buộc `priceProtect` + `workingType=MARK_PRICE`; đo riêng slippage theo `side`.
+- **Bug phát hiện khi integration (đã sửa):** `GET /fapi/v1/openAlgoOrders` trả `{"total","orders"}` (cả Binance lẫn mock), nhưng `recovery.py` giả định list → tưởng "không có SL" và **đặt SL trùng**. Đã sửa đọc cả 2 shape + test `test_recovery_keeps_existing_sl_dict_shape`. Đây là lý do phải chạy integration, không chỉ unit test.
+- **Giới hạn còn lại của reconcile:** hiện chỉ so `positionRisk` với DB; **chưa** so `openAlgoOrders`/`openOrders`. Orphan SL vì thế chỉ được phát hiện bởi integration/recovery, không bởi vòng reconcile 5s. Cần bổ sung ở P1.6 (watchdog) — ghi nhận, không tự mở rộng phạm vi P1.3.
+- Integration tạm dừng service `engine` để tránh 2 tiến trình cùng ghi SQLite và reconcile HALT oan; xong tự bật lại. Harness xoá vị thế/đơn của `manual-%`/`sys-%` và reset `halted`/`paused` để chạy lặp được.
 
 ---
 

@@ -22,6 +22,7 @@ def recover(con, rest, cfg: Config, ex: Executor | None = None) -> dict:
     ex = ex or Executor(con, rest, cfg, mgr=orders_mod.OrderManager(con, rest))
     snap_pos = rest.get("/fapi/v2/positionRisk")
     snap_algo = rest.get("/fapi/v1/openAlgoOrders")
+    algo_items = snap_algo.get("orders", []) if isinstance(snap_algo, dict) else snap_algo
     exchange_open = {
         str(p.get("symbol"))
         for p in (snap_pos if isinstance(snap_pos, list) else [])
@@ -29,7 +30,7 @@ def recover(con, rest, cfg: Config, ex: Executor | None = None) -> dict:
     }
     has_sl = {
         str(a.get("symbol"))
-        for a in (snap_algo if isinstance(snap_algo, list) else [])
+        for a in (algo_items if isinstance(algo_items, list) else [])
         if str(a.get("algoStatus", "")).upper() not in ("CANCELED", "EXPIRED", "FINISHED")
         and str(a.get("type", "")).upper() == "STOP_MARKET"
     }
