@@ -138,6 +138,19 @@ def run_spotcheck(
     trend_week_range_share = trend_week["share_tradable"][RegimeLabel.RANGE.value]
     ratio = round(range_share / trend_week_range_share, 4) if trend_week_range_share else None
     two_x = range_share >= 2 * trend_week_range_share
+
+    # Gate A (v1.1, sau P1.2b): do TUONG DOI thay vi do do pho bien.
+    # Ly do: khi TREND nhan ca hai chieu, mau so "nhan tradable" doi nghia (down-trend
+    # truoc day la UNKNOWN, nay la TREND) -> gate cu do mat do nhan, khong do kha nang
+    # phan biet. Bang chung: share tuyet doi cua RANGE trong tuan tot nhat gan nhu khong
+    # doi (12,50% -> 12,65%). Gate moi van fail neu RANGE that su thoai hoa.
+    week_range_shares = sorted(
+        _share(_tradable_counts(rows), RegimeLabel.RANGE) for rows in groups.values()
+    )
+    median_share = week_range_shares[len(week_range_shares) // 2] if week_range_shares else 0.0
+    vs_median_ratio = round(range_share / median_share, 4) if median_share else None
+    vs_median_2x = range_share >= 2 * median_share if median_share else True
+    # Giu lai lam chan doan, KHONG phai cong nghiem thu (xem gates_note)
     dominant = range_share >= max(range_week["share_tradable"][k.value] for k in TRADABLE)
 
     # Ngay crash: muc giam 15m manh nhat trong toan bo lich su da tai
@@ -176,12 +189,13 @@ def run_spotcheck(
 
     raw_t, fin_t = out.raw_transitions, out.transitions
     gates = {
-        # A: trong tuan RANGE tot nhat, RANGE troi trong 3 nhan tradable
-        "range_week_dominant_nonunknown": bool(dominant),
+        # A: RANGE o tuan tot nhat phai noi bat >= 2 lan so voi tuan trung vi
+        "range_week_vs_median_2x": bool(vs_median_2x),
         # B: RANGE o tuan tot nhat gap >= 2 lan RANGE o tuan TREND manh nhat
         "range_vs_trend_2x": bool(two_x),
         "crash_has_crisis": bool(crash_day and crash_day["crisis_bars"] > 0),
-        # D do tren dung cua so phan tich (khong tron 90 ngay warmup)
+        # D do tren dung cua so phan tich (khong tron 90 ngay warmup). Giu 50%:
+        # khong noi nguong sau khi thay ket qua (P1.2b lam gate nay fail 50,85%).
         "transitions_reduced_50pct": bool(win_final_t <= 0.5 * win_raw_t) if win_raw_t else True,
         "bbw_fallback_safe": bbw_none,
     }
@@ -210,6 +224,14 @@ def run_spotcheck(
         "range_week_key": range_key,
         "trend_week_key": trend_key,
         "range_vs_trend_ratio": ratio,
+        "range_week_median_share": round(median_share, 4),
+        "range_vs_median_ratio": vs_median_ratio,
+        "diagnostics": {
+            # thong tin, khong phai cong: gate cu do do pho bien nhan, mat hieu luc khi
+            # TREND nhan ca hai chieu (xem gates_note)
+            "range_week_dominant_nonunknown": bool(dominant),
+            "range_week_share_tradable": range_week["share_tradable"],
+        },
         "crash_day": crash_day,
         "bbw_fallback_60d": {
             "bars": len(short),
@@ -221,7 +243,9 @@ def run_spotcheck(
         "gates": gates,
         "gates_note": (
             "A/B do kha nang phan biet cua classifier, khong do do pho bien cua RANGE; "
-            "share_abs chi de tham khao"
+            "share_abs chi de tham khao. v1.1 (P1.2b): A doi sang 'tuan tot nhat >= 2x "
+            "tuan trung vi' vi TREND nhan ca hai chieu lam mau so tradable doi nghia; "
+            "gate cu giu o 'diagnostics'. D giu nguong 50%, khong noi sau khi thay ket qua."
         ),
     }
     if out_path:

@@ -28,16 +28,24 @@
     "return_15m": -0.042454
   },
   "data_files_sha256": "da01dbaf2bbb8f370363d99736ba5527e260f55cfc28a55d4d3c0447283d43fe",
+  "diagnostics": {
+    "range_week_dominant_nonunknown": false,
+    "range_week_share_tradable": {
+      "RANGE": 0.212,
+      "SQUEEZE": 0.015,
+      "TREND": 0.7731
+    }
+  },
   "end": "2026-11-15",
   "first_valid_label": 1743482700000,
   "gates": {
     "bbw_fallback_safe": true,
     "crash_has_crisis": true,
     "range_vs_trend_2x": true,
-    "range_week_dominant_nonunknown": false,
+    "range_week_vs_median_2x": true,
     "transitions_reduced_50pct": false
   },
-  "gates_note": "A/B do kha nang phan biet cua classifier, khong do do pho bien cua RANGE; share_abs chi de tham khao",
+  "gates_note": "A/B do kha nang phan biet cua classifier, khong do do pho bien cua RANGE; share_abs chi de tham khao. v1.1 (P1.2b): A doi sang 'tuan tot nhat >= 2x tuan trung vi' vi TREND nhan ca hai chieu lam mau so tradable doi nghia; gate cu giu o 'diagnostics'. D giu nguong 50%, khong noi sau khi thay ket qua.",
   "history_start": "2025-01-01",
   "label_counts": {
     "CRISIS": 6,
@@ -47,6 +55,7 @@
     "UNKNOWN": 24603
   },
   "params_sha256": "2a680166cc7ddd8fed08ab0d08eee9d43d8208ed5c45f25033408470330adba5",
+  "range_vs_median_ratio": 2.4424,
   "range_vs_trend_ratio": null,
   "range_week": {
     "end_ts": 1782949500000,
@@ -77,6 +86,7 @@
     }
   },
   "range_week_key": 1782345600000,
+  "range_week_median_share": 0.0868,
   "raw_hash": "162827391209d0456891bb8cfc97f6a65de0ac23f701eb53823354e945813c85",
   "raw_transitions": 5005,
   "raw_transitions_per_day": 7.3173,

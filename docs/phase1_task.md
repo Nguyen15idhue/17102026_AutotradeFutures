@@ -368,11 +368,11 @@ Vì sao tách khỏi P1.2: P1.2 đã pass cổng theo phạm vi cũ (chỉ cần
 - `trend_dir` là **field**, không phải nhãn thứ 6 → giữ nguyên schema, dashboard, mapping chiến lược.
 - **Luật khớp EMA trên 1h và `direction_conflict` kiểm ở tầng signal (P1.4/P1.6)**, không ở detector: detector chạy trên 15m nên không tự thấy 1h. Detector chỉ chịu trách nhiệm "hướng 15m + độ bền 3 nến"; strategy đọc thêm 1h và bỏ tín hiệu nếu lệch.
 - Không đổi ngưỡng nào của P1.2 trong bước này. Nếu thấy cần đổi → dừng, đó là thay đổi chiến lược, phải walk-forward (AGENTS §10).
-- **Hai cổng spot-check P1.2 chuyển từ đạt → không đạt sau P1.2b (phát hiện 18/11/2026, cần quyết định):**
-  - `range_week_dominant_nonunknown`: tuần 2026-06-25 trước đây RANGE 51,2% / TREND 45,1% (nhãn tradable); sau P1.2b còn RANGE 21,2% / TREND 77,3% — vì 18.233 nến down-trend trước đây là `UNKNOWN` nay là `TREND`.
-  - `transitions_reduced_50pct`: 660/1.298 = **50,85%** (ngưỡng ≤ 50%), trước P1.2b là 505/1.088 = 46,4%.
-  - Nguyên nhân đã chứng minh bằng chạy đối chứng: hạ `direction_for` về hành vi cũ (chỉ up-trend = TREND) → **5/5 cổng đạt lại**. Vậy đây là hệ quả của việc nhận diện trend hai chiều, không phải lỗi hash/migration.
-  - Chưa sửa ngưỡng/cổng vì cả hai đều là "luật" (AGENTS §11). Cần user chọn: giữ nguyên và chấp nhận 3/5, hay định nghĩa lại cổng A/D cho phù hợp nhãn TREND hai chiều, hay siết điều kiện TREND (phải walk-forward).
+- **Cổng spot-check sau P1.2b: 4/5 đạt, 1 fail đã biết (quyết định 18/11/2026 — phương án lai):**
+  - **Gate A đổi định nghĩa (vì phép đo mất hiệu lực, không phải vì kết quả xấu):** từ "RANGE trội trong nhãn tradable" → **`RANGE(tuần tốt nhất) ≥ 2 × RANGE(tuần trung vị)`**. Lý do: khi TREND nhận cả hai chiều, mẫu số "tradable" đổi nghĩa (down-trend trước là `UNKNOWN`, nay là `TREND`) → gate cũ đo mật độ nhãn. Bằng chứng: share **tuyệt đối** của RANGE trong tuần 2026-06-25 gần như không đổi (12,50% → 12,65%). Gate mới: 21,2% vs trung vị 8,68% = **2,44× → đạt**; vẫn fail nếu RANGE thoái hoá thật.
+  - **Gate D giữ nguyên ngưỡng 50% và chấp nhận fail:** 660/1.298 = **50,85%** (trước P1.2b: 505/1.088 = 46,4%). Không nới ngưỡng sau khi thấy kết quả. Churn thực tế 3,93 lần/ngày (trước: 3,0) — theo dõi trong mock 2 tuần; chỉ xem lại hysteresis khi có bằng chứng từ mock, và phải ghi lý do.
+  - Gate cũ giữ ở `report.diagnostics` để tra cứu, không còn là cổng.
+  - Hệ quả: `scripts/ps/p1.2-check.ps1 -Mode SpotCheck` trả exit 2 cho tới khi D pass — đúng như thiết kế, không che giấu.
 
 ---
 
@@ -750,7 +750,7 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 |---|---|---|---|---|
 | P1.0 | Xác minh môi trường | ⬜ Chưa | | |
 | P1.1 | Exchange adapter | ⬜ Chưa | | |
-| P1.2 | Data + Regime | ✅ Xong | 18/11/2026 | 74 test mới; replay hash tất định; **5/5 cổng spot-check trước P1.2b — sau P1.2b còn 3/5** (xem Ghi chú P1.2b); image engine build lại + 3 service healthy |
+| P1.2 | Data + Regime | ✅ Xong | 18/11/2026 | 74 test mới; replay hash tất định; **spot-check 4/5 sau P1.2b** (gate D fail 50,85% — đã biết, xem Ghi chú P1.2b); image engine build lại + 3 service healthy |
 | P1.2b | `trend_dir` + khung 4h | ⬜ Chưa | | Bổ sung v2.0 cho Trend short; xem mục P1.2b |
 | P1.3 | Risk + Executor | ⬜ Chưa | | |
 | P1.4 | MR + backtest | ⬜ Chưa | | |
