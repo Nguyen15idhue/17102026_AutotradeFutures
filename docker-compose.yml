@@ -62,6 +62,7 @@ services:
       BINANCE_WS_URL: ws://binance-demo-server:8080/ws
     volumes:
       - botdata:/app/data
+      - ./config:/app/config:ro   # config/mvp.*.yaml: single source of truth, khong bake vao image
     depends_on:
       binance-demo-server:
         condition: service_healthy

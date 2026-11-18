@@ -199,6 +199,29 @@ class Executor:
             "fill_price": fill_price,
         }
 
+    # -- market snapshot (P1.3 tam thoi poll REST; WS market la P1.6) ----------
+    def refresh_market(self, symbol: str) -> dict:
+        """Cap nhat last_market_ms + spread_bps de risk khong chan oan vi stale."""
+        bt = self._rest.get("/fapi/v1/ticker/bookTicker", {"symbol": symbol}, signed=False)
+        bid = float(bt.get("bidPrice") or 0)
+        ask = float(bt.get("askPrice") or 0)
+        mid = (bid + ask) / 2 if bid and ask else 0.0
+        spread_bps = ((ask - bid) / mid * 10_000) if mid else None
+        now = self._now()
+        self._con.execute(
+            "INSERT INTO runtime_state(key,value,updated_ms) VALUES('last_market_ms',?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_ms=excluded.updated_ms",
+            (str(now), now),
+        )
+        if spread_bps is not None:
+            self._con.execute(
+                "INSERT INTO runtime_state(key,value,updated_ms) VALUES('spread_bps',?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value,"
+                "updated_ms=excluded.updated_ms",
+                (f"{spread_bps:.4f}", now),
+            )
+        return {"bid": bid, "ask": ask, "mid": mid, "spread_bps": spread_bps}
+
     # -- doi SL / dong lenh ---------------------------------------------------
     def _row(self, symbol: str):
         return self._con.execute(

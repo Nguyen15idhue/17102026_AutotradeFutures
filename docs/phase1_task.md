@@ -437,10 +437,13 @@ Make-before-break nghĩa là: đặt SL mới **trước**, xóa SL cũ **sau**.
 | Executor SL/TP/trailing (cả short) | ✅ | Thứ tự risk → place → fetch fill → SL (`STOP_MARKET closePosition`, short = BUY stop trên giá) → TP chỉ MR; SL trong <300ms sau fill (đo monotonic); trailing make-before-break chứng minh `place` trước `cancel`; cancel fail → HALT; 11 test `test_executor.py` | 18/11/2026 |
 | Trailing + recovery | ✅ | `trail()` đặt SL mới trước rồi cancel cũ, cập nhật `positions.sl/sl_id`; `close()` market `reduceOnly=true` → state CLOSED; `recovery.recover()` đặt lại SL thiếu, DB/exchange lệch → HALT + incident; 8 test `test_recovery.py` | 18/11/2026 |
 | Kill switch 3 cấp | ✅ | `ops/commands.py` 4 action (pause/resume/flatten/stop), action lạ → `REJECTED` + incident; pause chặn entry (`paused` trong risk); flatten đóng hết; stop set `halted=1`; ack `done_ms`; 6 test `test_killswitch.py`, đo < 2s | 18/11/2026 |
-| 11 test injection pass | ⬜ Chưa | | |
+| 11 test injection pass | 🟡 | 13 mục checklist có test tương ứng rải trong `test_config`/`test_risk_limits`/`test_risk_sizing`/`test_executor`/`test_recovery`/`test_killswitch`/`test_wiring` (206 test tổng); bảng đối chiếu 13→test ở Ghi chú | 18/11/2026 |
 
 ### Ghi chú
 
+- **Wiring (S7):** `main.py` load config theo `CONFIG_PATH`, chạy command loop + reconcile + poll `bookTicker` 2s (để `last_market_ms` tươi và có `spread_bps`; WS market là P1.6), gọi `recovery.recover()` lúc khởi động. `exec/cli.py` **từ chối chạy nếu `env != mock`**. `docker-compose.yml` mount `./config:/app/config:ro`; thêm `pyyaml>=6` vào requirements. Xác minh 18/11/2026: image build lại, engine `Up`, log chỉ có `clock.sync` / `engine.recovery` (0 lệch) / `engine.start env=mock`, không traceback.
+- **Đã sửa `exchange/orders.py` (có chủ ý):** thêm `fetch_order`, `cancel_order`, `cancel_algo`, tham số `time_in_force`/`reduce_only`. Soak P1.1 **chưa từng chạy** (vẫn ⬜) nên không vô hiệu hoá kết quả nào — soak sẽ chạy trên code này.
+- **Bảng đối chiếu checklist 13 mục → test**: risk/lệnh vượt, portfolio, margin, daily loss, blackout, stale, slot, correlated, notional<min, kill switch, trailing, SL fail, short SL — tương ứng `test_risk_limits.py` (19), `test_risk_sizing.py` (13), `test_executor.py` (11), `test_killswitch.py` (6), `test_recovery.py` (8).
 - `margin_usage_max: 0.60`: với TK nhỏ, margin cạn **trước** risk cap. Trên 300 USD: MR stop ~0,4% → notional ~188 → margin ~63/lệnh → chỉ 2 lệnh vừa cap 60%.
 - Cảnh báo mềm khi `stop% < 0,5%` — notional > 2× vốn/lệnh, phí và slippage ăn tỷ lệ R xấu hơn nhiều.
 - Short SL là buy-stop: bắt buộc `priceProtect` + `workingType=MARK_PRICE`; đo riêng slippage theo `side`.

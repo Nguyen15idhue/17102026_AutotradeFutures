@@ -50,8 +50,9 @@ class OrderManager:
         price: str = "",
         client_id: str = "",
         time_in_force: str = "",
+        reduce_only: bool = False,
     ) -> dict:
-        """Lenh thuong qua /fapi/v1/order. time_in_force=GTX cho post-only (MR)."""
+        """Lenh thuong qua /fapi/v1/order. GTX = post-only; reduceOnly cho lenh dong."""
         return self._send(
             "/fapi/v1/order",
             {
@@ -61,6 +62,7 @@ class OrderManager:
                 "quantity": qty,
                 **({"price": price} if price else {}),
                 **({"timeInForce": time_in_force} if time_in_force else {}),
+                **({"reduceOnly": "true"} if reduce_only else {}),
                 "newClientOrderId": client_id or new_client_id(self._strategy, symbol),
             },
         )

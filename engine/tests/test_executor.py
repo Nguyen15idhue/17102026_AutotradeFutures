@@ -45,6 +45,8 @@ class FakeRest:
             }
         if path == "/fapi/v1/order":
             return {"status": self.fill_status, "avgPrice": self.avg, "executedQty": "0.75"}
+        if path == "/fapi/v1/ticker/bookTicker":
+            return {"bidPrice": "99.9", "askPrice": "100.1"}
         return {}
 
     def post(self, path, params=None, signed=True, max_tries=4):

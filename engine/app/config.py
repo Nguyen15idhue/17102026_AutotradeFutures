@@ -170,13 +170,17 @@ def load(path: str | Path | None = None) -> Config:
     _req(0.0 < risk.risk_per_trade <= 0.005, "risk_per_trade phai trong (0, 0.005]")
     _req(risk.max_leverage <= 3, "max_leverage <= 3")
     _req(risk.max_positions >= 1, "max_positions >= 1")
-    _req(1 <= strategies.max_positions_per_strategy <= risk.max_positions,
-         "max_positions_per_strategy phai trong [1, max_positions]")
+    _req(
+        1 <= strategies.max_positions_per_strategy <= risk.max_positions,
+        "max_positions_per_strategy phai trong [1, max_positions]",
+    )
     _req(0.0 < risk.portfolio_risk_max <= 0.02, "portfolio_risk_max <= 0.02")
     _req(0.0 < risk.max_correlated_risk <= 0.02, "max_correlated_risk <= 0.02")
     _req(0.0 < risk.margin_usage_max <= 0.60, "margin_usage_max <= 0.60")
-    _req(0.0 < risk.daily_loss_limit <= risk.weekly_loss_limit <= risk.max_drawdown,
-         "daily <= weekly <= max_drawdown")
+    _req(
+        0.0 < risk.daily_loss_limit <= risk.weekly_loss_limit <= risk.max_drawdown,
+        "daily <= weekly <= max_drawdown",
+    )
     _req(0.0 < risk.stale_data_seconds <= 10.0, "stale_data_seconds phai trong (0, 10]")
     _req(risk.blackout_minutes >= 0, "blackout_minutes >= 0")
 
