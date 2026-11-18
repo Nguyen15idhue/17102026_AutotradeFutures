@@ -1,0 +1,121 @@
+{
+  "bars_15m": 65664,
+  "bbw_fallback_60d": {
+    "bars": 5761,
+    "bbw_pct_all_none": true,
+    "features": 5733,
+    "hash": "576e6743c527cb0546f3e69847387a2e968ec06de13be1d187c7696465f2f4c2",
+    "label_counts": {
+      "CRISIS": 0,
+      "RANGE": 0,
+      "SQUEEZE": 0,
+      "TREND": 1363,
+      "UNKNOWN": 4398
+    }
+  },
+  "crash_day": {
+    "bars": 96,
+    "crisis_bars": 6,
+    "date": "2026-02-06",
+    "hash": "71eb44c1486d80aa05935462509fa871693e8a13310532f0aa9f09bbc0418c23",
+    "label_counts": {
+      "CRISIS": 6,
+      "RANGE": 0,
+      "SQUEEZE": 0,
+      "TREND": 3,
+      "UNKNOWN": 87
+    },
+    "return_15m": -0.042454
+  },
+  "data_files_sha256": "da01dbaf2bbb8f370363d99736ba5527e260f55cfc28a55d4d3c0447283d43fe",
+  "end": "2026-11-15",
+  "first_valid_label": 1743482700000,
+  "gates": {
+    "bbw_fallback_safe": true,
+    "crash_has_crisis": true,
+    "range_vs_trend_2x": true,
+    "range_week_dominant_nonunknown": true,
+    "transitions_reduced_50pct": true
+  },
+  "gates_note": "A/B do kha nang phan biet cua classifier, khong do do pho bien cua RANGE; share_abs chi de tham khao",
+  "history_start": "2025-01-01",
+  "label_counts": {
+    "CRISIS": 6,
+    "RANGE": 3148,
+    "SQUEEZE": 1359,
+    "TREND": 18328,
+    "UNKNOWN": 42823
+  },
+  "params_sha256": "201a31090b27e4f2b92dab42564bdc4082085a558d2627c6e2aef546540c18d7",
+  "range_vs_trend_ratio": null,
+  "range_week": {
+    "end_ts": 1782949500000,
+    "hash": "33cbf5cb78e54f9c53c1fb92ca711d4424b68d7b922331783a1cd9c807b992c6",
+    "label_counts": {
+      "CRISIS": 0,
+      "RANGE": 84,
+      "SQUEEZE": 6,
+      "TREND": 74,
+      "UNKNOWN": 508
+    },
+    "share_abs": {
+      "RANGE": 0.125,
+      "SQUEEZE": 0.0089,
+      "TREND": 0.1101
+    },
+    "share_tradable": {
+      "RANGE": 0.5122,
+      "SQUEEZE": 0.0366,
+      "TREND": 0.4512
+    },
+    "start_date": "2026-06-25",
+    "start_ts": 1782345600000,
+    "tradable_counts": {
+      "RANGE": 84,
+      "SQUEEZE": 6,
+      "TREND": 74
+    }
+  },
+  "range_week_key": 1782345600000,
+  "raw_hash": "b92e3e60a62332f88c3850d475366fc304a4e00e9302370b3a1f79bc36bef3f5",
+  "raw_transitions": 4171,
+  "raw_transitions_per_day": 6.098,
+  "replay_hash": "576952eafb77036011448ba59c4a9294b625f93e01e99544b25b58df162ec2a3",
+  "start": "2026-06-01",
+  "symbol": "BTCUSDT",
+  "transitions": 2090,
+  "transitions_per_day": 3.0556,
+  "trend_week": {
+    "end_ts": 1781135100000,
+    "hash": "c4a88e613b238e3701ca23c6abaeea7ca6e1f533ddfeb82162bdd5f62dcdcd42",
+    "label_counts": {
+      "CRISIS": 0,
+      "RANGE": 0,
+      "SQUEEZE": 0,
+      "TREND": 134,
+      "UNKNOWN": 538
+    },
+    "share_abs": {
+      "RANGE": 0.0,
+      "SQUEEZE": 0.0,
+      "TREND": 0.1994
+    },
+    "share_tradable": {
+      "RANGE": 0.0,
+      "SQUEEZE": 0.0,
+      "TREND": 1.0
+    },
+    "start_date": "2026-06-04",
+    "start_ts": 1780531200000,
+    "tradable_counts": {
+      "RANGE": 0,
+      "SQUEEZE": 0,
+      "TREND": 134
+    }
+  },
+  "trend_week_key": 1780531200000,
+  "weeks_analysed": 24,
+  "window_bars": 16128,
+  "window_raw_transitions": 1088,
+  "window_transitions": 505
+}

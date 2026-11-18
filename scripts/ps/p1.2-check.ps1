@@ -136,7 +136,8 @@ function Chay-Replay {
     if (${h1} -ne ${h2}) {
         throw "replay KHÔNG tất định: ${h1} khác ${h2}"
     }
-    Bao-Dat "replay hash ${($bao.hash)} (2 lần giống nhau, báo cáo ${h1})"
+    $hashNoiDung = $bao.hash
+    Bao-Dat "replay hash ${hashNoiDung} (2 lần giống nhau, file báo cáo ${h1})"
 }
 
 function Chay-SpotCheck {

@@ -178,7 +178,7 @@ def test_range_pct_matches_percentile_of_past_ratio():
     for j in range(i):
         if atr[j] is None:
             continue
-        seg = bars[max(0, j - F.RANGE_N + 1): j + 1]
+        seg = bars[max(0, j - F.RANGE_N + 1) : j + 1]
         hi, lo = max(b["h"] for b in seg), min(b["l"] for b in seg)
         ratios.append((hi - lo) / atr[j])
     expected = F.pct_rank(ratios, s[i]["range_ratio"])
