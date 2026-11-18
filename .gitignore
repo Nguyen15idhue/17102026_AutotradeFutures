@@ -11,7 +11,8 @@
 # ============================================================
 # Dữ liệu runtime
 # ============================================================
-data/
+# Dữ liệu runtime (chỉ data/ ở gốc repo; KHÔNG khớp engine/app/data — đó là code)
+/data/
 backups/
 logs/
 *.db
