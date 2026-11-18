@@ -105,3 +105,45 @@ def test_regime_upsert_updates_reason(tmp_path):
     )
     got = persist.read_regime(con, "BTCUSDT", 0, 2_000)
     assert len(got) == 1 and got[0]["label"] == "SQUEEZE" and got[0]["reason"] == "moi"
+
+
+def test_regime_trend_dir_roundtrip(tmp_path):
+    con = _con(tmp_path)
+    up = RegimeResult(RegimeLabel.TREND, RegimeLabel.TREND, 1.0, "trend:ok", trend_dir=-1)
+    persist.upsert_regime(con, "BTCUSDT", [(1_000, up)])
+    assert persist.read_regime(con, "BTCUSDT", 0, 2_000)[0]["trend_dir"] == -1
+    # upsert lai cung ts phai ghi de huong
+    down = RegimeResult(RegimeLabel.TREND, RegimeLabel.TREND, 1.0, "trend:ok", trend_dir=1)
+    persist.upsert_regime(con, "BTCUSDT", [(1_000, down)])
+    got = persist.read_regime(con, "BTCUSDT", 0, 2_000)
+    assert len(got) == 1 and got[0]["trend_dir"] == 1
+
+
+def test_migration_adds_trend_dir_to_old_db(tmp_path):
+    """DB tao truoc P1.2b (khong co cot trend_dir) phai duoc migrate, khong mat du lieu."""
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.execute(
+        "CREATE TABLE regime(symbol TEXT NOT NULL, ts INTEGER NOT NULL, label TEXT NOT NULL,"
+        " confidence REAL NOT NULL DEFAULT 0, raw_label TEXT NOT NULL,"
+        " reason TEXT NOT NULL DEFAULT '', PRIMARY KEY(symbol, ts))"
+    )
+    old.execute(
+        "INSERT INTO regime(symbol,ts,label,confidence,raw_label,reason)"
+        " VALUES('BTCUSDT',1000,'RANGE',1.0,'RANGE','cu')"
+    )
+    old.commit()
+    old.close()
+
+    con = connect(str(path))  # connect() phai tu migrate
+    cols = {r[1] for r in con.execute("PRAGMA table_info(regime)")}
+    assert "trend_dir" in cols
+    assert con.execute("SELECT trend_dir FROM regime").fetchone()[0] == 0
+    assert con.execute("SELECT label FROM regime").fetchone()[0] == "RANGE"
+    con.close()
+
+    con2 = connect(str(path))  # idempotent, khong loi
+    assert con2.execute("SELECT COUNT(*) FROM regime").fetchone()[0] == 1
+    con2.close()

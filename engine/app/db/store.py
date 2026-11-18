@@ -41,8 +41,25 @@ CREATE TABLE IF NOT EXISTS features(
 CREATE TABLE IF NOT EXISTS regime(
   symbol TEXT NOT NULL, ts INTEGER NOT NULL, label TEXT NOT NULL,
   confidence REAL NOT NULL DEFAULT 0, raw_label TEXT NOT NULL,
-  reason TEXT NOT NULL DEFAULT '', PRIMARY KEY(symbol, ts));
+  reason TEXT NOT NULL DEFAULT '', trend_dir INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(symbol, ts));
 """
+
+# Migration cho DB tao truoc khi co cot moi. Idempotent: chi ALTER khi thieu cot.
+# Ly do: DB runtime (data/p1.2.db) da ton tai, CREATE TABLE IF NOT EXISTS khong them cot.
+_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
+    ("regime", "trend_dir", "INTEGER NOT NULL DEFAULT 0"),
+)
+
+
+def _column_names(con: sqlite3.Connection, table: str) -> set[str]:
+    return {str(r[1]) for r in con.execute(f"PRAGMA table_info({table})")}
+
+
+def _migrate(con: sqlite3.Connection) -> None:
+    for table, col, ddl in _MIGRATIONS:
+        if col not in _column_names(con, table):
+            con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
 
 
 def connect(path: str) -> sqlite3.Connection:
@@ -54,6 +71,7 @@ def connect(path: str) -> sqlite3.Connection:
     con.execute("PRAGMA busy_timeout=5000;")
     for stmt in [s for s in SCHEMA.split(";") if s.strip() and not s.strip().startswith("PRAGMA")]:
         con.execute(stmt)
+    _migrate(con)
     return con
 
 

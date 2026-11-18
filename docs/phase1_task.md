@@ -359,7 +359,7 @@ Vì sao tách khỏi P1.2: P1.2 đã pass cổng theo phạm vi cũ (chỉ cần
 | `trend_dir` + đối xứng up/down | ✅ | `direction_for()` + `TREND` cho cả 2 chiều; `ema50<ema200` không còn ra `UNKNOWN` (5 test mới) | 18/11/2026 |
 | Streak 3 nến + reset khi đổi chiều | ✅ | `RegimeMachine._update_direction`, `TREND_DIR_CONFIRM_BARS=3`; `trend_dir=0` ngoài TREND và khi chưa đủ 3 nến; test không look-ahead qua `run_bars` | 18/11/2026 |
 | Khung 4h aggregate | ✅ | `bars.py` thêm `4h` (240 nến 1m, `NEED=240`) + 4 test mới trong `test_bars.py` (OHLCV, cửa sổ thiếu bị bỏ, gap báo, 1h/15m không đổi) — 18 test pass | 18/11/2026 |
-| Migration cột `regime.trend_dir` | ⬜ Chưa | | |
+| Migration cột `regime.trend_dir` | ✅ | `store._migrate()` (PRAGMA → ALTER, idempotent) + persist ghi/đọc; 2 test mới (DB cũ giữ dữ liệu, round-trip `trend_dir`), 8 test persist pass | 18/11/2026 |
 | Hash replay mới được ghi lại | ⬜ Chưa | | |
 | CI job `engine` | ⬜ Chưa | | |
 

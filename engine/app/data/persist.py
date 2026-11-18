@@ -101,15 +101,24 @@ def upsert_regime(
     con: sqlite3.Connection, symbol: str, rows: list[tuple[int, RegimeResult]]
 ) -> int:
     data = [
-        (symbol, int(ts), r.label.value, float(r.confidence), r.raw_label.value, r.reason)
+        (
+            symbol,
+            int(ts),
+            r.label.value,
+            float(r.confidence),
+            r.raw_label.value,
+            r.reason,
+            int(r.trend_dir),
+        )
         for ts, r in rows
     ]
     with _tx(con):
         con.executemany(
-            "INSERT INTO regime(symbol,ts,label,confidence,raw_label,reason) "
-            "VALUES(?,?,?,?,?,?) ON CONFLICT(symbol,ts) DO UPDATE SET "
+            "INSERT INTO regime(symbol,ts,label,confidence,raw_label,reason,trend_dir) "
+            "VALUES(?,?,?,?,?,?,?) ON CONFLICT(symbol,ts) DO UPDATE SET "
             "label=excluded.label,confidence=excluded.confidence,"
-            "raw_label=excluded.raw_label,reason=excluded.reason",
+            "raw_label=excluded.raw_label,reason=excluded.reason,"
+            "trend_dir=excluded.trend_dir",
             data,
         )
     return len(data)
@@ -117,12 +126,19 @@ def upsert_regime(
 
 def read_regime(con: sqlite3.Connection, symbol: str, start_ms: int, end_ms: int) -> list[dict]:
     cur = con.execute(
-        "SELECT ts,label,confidence,raw_label,reason FROM regime "
+        "SELECT ts,label,confidence,raw_label,reason,trend_dir FROM regime "
         "WHERE symbol=? AND ts>=? AND ts<=? ORDER BY ts",
         (symbol, start_ms, end_ms),
     )
     return [
-        {"ts": r[0], "label": r[1], "confidence": r[2], "raw_label": r[3], "reason": r[4]}
+        {
+            "ts": r[0],
+            "label": r[1],
+            "confidence": r[2],
+            "raw_label": r[3],
+            "reason": r[4],
+            "trend_dir": r[5],
+        }
         for r in cur.fetchall()
     ]
 
