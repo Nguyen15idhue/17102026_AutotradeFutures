@@ -33,3 +33,4 @@ class RegimeResult:
     confidence: float
     reason: str
     changed: bool = False
+    trend_dir: int = 0  # +1 len / -1 xuong / 0 chua xac nhan hoac khong phai TREND

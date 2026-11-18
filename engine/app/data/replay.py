@@ -33,6 +33,7 @@ from ..regime.detector import (
     SQUEEZE_RANGE_PCT_MAX,
     RegimeMachine,
     classify,
+    direction_for,
 )
 from ..regime.types import RegimeInputs, RegimeLabel
 from . import bars as bars_mod
@@ -186,7 +187,7 @@ def run_bars(
             btc_ret_15m=(btc_ret or {}).get(ts),
         )
         raw_label, conf, reason = classify(inputs)
-        res = machine.update(raw_label, conf, reason)
+        res = machine.update(raw_label, conf, reason, direction_for(f))
         rows.append(
             {
                 "ts": ts,
@@ -194,6 +195,7 @@ def run_bars(
                 "raw_label": res.raw_label.value,
                 "confidence": res.confidence,
                 "reason": res.reason,
+                "trend_dir": res.trend_dir,
                 "feature": f,
             }
         )

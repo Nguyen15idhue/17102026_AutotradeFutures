@@ -24,10 +24,25 @@ CRISIS_BTC_RET_15M = -0.04
 HYSTERESIS_BARS = 3
 COOLDOWN_BARS = 5
 CRISIS_CONFIRM_BARS = 1
+TREND_DIR_CONFIRM_BARS = 3  # huong trend phai giu 3 nen moi duoc dung (spec §6.2)
 
 
 def _fmt(x: float | None) -> str:
     return "-" if x is None else f"{x:.4f}"
+
+
+def direction_for(feature: dict | None) -> int:
+    """Huong trend tho tren 15m tu EMA50/EMA200: +1 len, -1 xuong, 0 thieu mau.
+
+    Tach rieng khoi `classify` vi day la "huong", khong phai "nhan": trend_dir la
+    field (spec v2.0), khong them nhan thu 6.
+    """
+    if not feature:
+        return 0
+    ema50, ema200 = feature.get("ema50"), feature.get("ema200")
+    if ema50 is None or ema200 is None or ema50 == ema200:
+        return 0
+    return 1 if ema50 > ema200 else -1
 
 
 def _crisis(inputs: RegimeInputs) -> tuple[bool, list[str], list[str]]:
@@ -85,13 +100,14 @@ def classify(inputs: RegimeInputs) -> tuple[RegimeLabel, float, str]:
             ("range", RANGE_VOL_PCT_MIN <= vol_pct <= RANGE_VOL_PCT_MAX, f"vol_pct={_fmt(vol_pct)}")
         )
         checks.append(("range", bbw_pct > RANGE_BBW_PCT_MIN, f"bbw_pct={_fmt(bbw_pct)}"))
-    # TREND: adx>22 va ema50>ema200
-    ema50, ema200 = f.get("ema50"), f.get("ema200")
-    if adx is None or ema50 is None or ema200 is None:
-        checks.append(("trend", False, "missing"))
+    # TREND: adx>22 va EMA50/EMA200 khac chieu — nhan TREND cho CA HAI huong.
+    # Huong chi tiet nam o `direction_for` / `trend_dir` (field), khong tach nhan.
+    direction = direction_for(f)
+    if adx is None or direction == 0:
+        checks.append(("trend", False, "missing" if adx is None else "ema50=ema200"))
     else:
         checks.append(("trend", adx > ADX_TREND_MIN, f"adx={_fmt(adx)}"))
-        checks.append(("trend", ema50 > ema200, "ema50>ema200"))
+        checks.append(("trend", True, f"dir={direction}"))
 
     def passed(name: str) -> bool:
         return all(ok for n, ok, _ in checks if n == name)
@@ -109,7 +125,7 @@ def classify(inputs: RegimeInputs) -> tuple[RegimeLabel, float, str]:
             reason += ";missing:" + ",".join(missing)
         return RegimeLabel.RANGE, conf("range"), reason
     if passed("trend"):
-        return RegimeLabel.TREND, conf("trend"), "trend:ok"
+        return RegimeLabel.TREND, conf("trend"), f"trend:ok;dir={direction}"
 
     failed = [f"{n}:{r}" for n, ok, r in checks if not ok]
     if missing:
@@ -118,24 +134,50 @@ def classify(inputs: RegimeInputs) -> tuple[RegimeLabel, float, str]:
 
 
 class RegimeMachine:
-    """Hysteresis: nhan moi giu 3 nen; sau khi doi, 5 nen khong doi lai. CRISIS vao ngay."""
+    """Hysteresis: nhan moi giu 3 nen; sau khi doi, 5 nen khong doi lai. CRISIS vao ngay.
+
+    `trend_dir` la huong da xac nhan (3 nen lien tiep cung dau). Streak huong doc lap
+    voi hysteresis cua nhan: doi nhan khong reset streak, chi doi dau moi reset.
+    Chi phoi `trend_dir` khi nhan hien tai la TREND — ngoai TREND tra 0 de strategy
+    khong vo tinh vao lenh dua tren huong cua mot regime khac.
+    """
 
     def __init__(
         self,
         confirm_bars: int = HYSTERESIS_BARS,
         cooldown_bars: int = COOLDOWN_BARS,
         crisis_confirm_bars: int = CRISIS_CONFIRM_BARS,
+        dir_confirm_bars: int = TREND_DIR_CONFIRM_BARS,
         initial: RegimeLabel = RegimeLabel.UNKNOWN,
     ) -> None:
         self.confirm_bars = confirm_bars
         self.cooldown_bars = cooldown_bars
         self.crisis_confirm_bars = crisis_confirm_bars
+        self.dir_confirm_bars = dir_confirm_bars
         self.current = initial
         self.pending: RegimeLabel | None = None
         self.streak = 0
         self.since_change = cooldown_bars  # du dieu kien ngay tu dau
+        self._dir_raw = 0
+        self._dir_streak = 0
 
-    def update(self, raw: RegimeLabel, confidence: float, reason: str) -> RegimeResult:
+    def _update_direction(self, raw_dir: int) -> int:
+        if raw_dir == 0:
+            self._dir_raw, self._dir_streak = 0, 0
+        elif raw_dir == self._dir_raw:
+            self._dir_streak += 1
+        else:
+            self._dir_raw, self._dir_streak = raw_dir, 1
+        confirmed = self._dir_raw if self._dir_streak >= self.dir_confirm_bars else 0
+        return confirmed if self.current is RegimeLabel.TREND else 0
+
+    def update(
+        self,
+        raw: RegimeLabel,
+        confidence: float,
+        reason: str,
+        raw_dir: int = 0,
+    ) -> RegimeResult:
         self.since_change += 1
         changed = False
         if raw == self.current:
@@ -154,6 +196,7 @@ class RegimeMachine:
                 self.since_change = 0
                 changed = True
 
+        trend_dir = self._update_direction(raw_dir)
         held_conf = confidence if raw == self.current else 0.0
         return RegimeResult(
             label=self.current,
@@ -161,4 +204,5 @@ class RegimeMachine:
             confidence=round(held_conf, 4),
             reason=reason,
             changed=changed,
+            trend_dir=trend_dir,
         )

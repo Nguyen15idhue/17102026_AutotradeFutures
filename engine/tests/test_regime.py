@@ -44,6 +44,7 @@ def test_thresholds_match_spec():
     assert (D.CRISIS_SPREAD_MULT, D.CRISIS_LIQ_COUNT) == (3.0, 5)
     assert (D.CRISIS_FUNDING_ABS, D.CRISIS_BTC_RET_15M) == (0.001, -0.04)
     assert (D.HYSTERESIS_BARS, D.COOLDOWN_BARS, D.CRISIS_CONFIRM_BARS) == (3, 5, 1)
+    assert D.TREND_DIR_CONFIRM_BARS == 3
 
 
 def test_range_baseline():
@@ -97,16 +98,88 @@ def test_crisis_missing_inputs_are_not_triggered_but_reported():
     assert "missing:spread,liq,funding,btc" in reason
 
 
-def test_trend_requires_adx_and_ema_order():
-    f = feat(
-        adx=30.0, ema50=120.0, ema200=100.0, bbw_pct=30.0, vol_pct=40.0, range_pct=80.0
-    )  # range_pct cao nen khong phai RANGE/SQUEEZE
-    label, conf, _ = D.classify(RegimeInputs(f))
-    assert label is RegimeLabel.TREND and conf == 1.0
-    assert (
-        D.classify(RegimeInputs(feat(adx=30.0, ema50=90.0, range_pct=80.0)))[0]
-        is RegimeLabel.UNKNOWN
-    )
+def test_trend_both_directions():
+    up = feat(adx=30.0, ema50=120.0, ema200=100.0, range_pct=80.0)
+    dn = feat(adx=30.0, ema50=90.0, ema200=100.0, range_pct=80.0)
+    assert D.classify(RegimeInputs(up))[0] is RegimeLabel.TREND
+    assert D.classify(RegimeInputs(dn))[0] is RegimeLabel.TREND
+    assert D.direction_for(up) == 1
+    assert D.direction_for(dn) == -1
+
+
+def test_direction_for_missing_or_equal_is_zero():
+    assert D.direction_for(None) == 0
+    assert D.direction_for({"ema50": None, "ema200": 100.0}) == 0
+    assert D.direction_for({"ema50": 100.0, "ema200": 100.0}) == 0
+
+
+def _raw2(label: RegimeLabel, d: int = 0, conf: float = 1.0):
+    return label, conf, "x", d
+
+
+def test_trend_dir_confirmed_after_three_bars():
+    m = D.RegimeMachine()
+    out = [m.update(*_raw2(RegimeLabel.TREND, -1)) for _ in range(3)]
+    assert [r.label for r in out] == [
+        RegimeLabel.UNKNOWN,
+        RegimeLabel.UNKNOWN,
+        RegimeLabel.TREND,
+    ]
+    # huong chua du 3 nen thi khong duoc dung
+    assert [r.trend_dir for r in out] == [0, 0, -1]
+
+
+def test_trend_dir_resets_when_direction_flips():
+    m = D.RegimeMachine()
+    for _ in range(4):
+        m.update(*_raw2(RegimeLabel.TREND, -1))
+    assert m.update(*_raw2(RegimeLabel.TREND, -1)).trend_dir == -1
+    assert m.update(*_raw2(RegimeLabel.TREND, 1)).trend_dir == 0
+    m.update(*_raw2(RegimeLabel.TREND, 1))
+    m.update(*_raw2(RegimeLabel.TREND, 1))
+    assert m.update(*_raw2(RegimeLabel.TREND, 1)).trend_dir == 1
+
+
+def test_trend_dir_is_zero_outside_trend():
+    m = D.RegimeMachine()
+    r = None
+    for _ in range(3):
+        r = m.update(*_raw2(RegimeLabel.RANGE, 1))
+    assert r is not None and r.label is RegimeLabel.RANGE and r.trend_dir == 0
+
+
+def _rising_bars(n: int, step: float = 1.0) -> list[dict]:
+    out = []
+    ts = 1_700_000_000_000 // 900_000 * 900_000
+    p = 100.0
+    for i in range(n):
+        out.append(
+            {
+                "open_time": ts + i * 900_000,
+                "close_time": ts + i * 900_000 + 899_999,
+                "o": p,
+                "h": p + 2.0,
+                "l": p - 2.0,
+                "c": p + step,
+                "v": 10.0,
+                "closed": True,
+            }
+        )
+        p += step
+    return out
+
+
+def test_trend_dir_has_no_lookahead():
+    """Them nen tuong lai khong duoc doi trend_dir cua cac nen truoc."""
+    from app.data import replay as R
+
+    bars = _rising_bars(260)
+    short = R.run_bars("BTCUSDT", bars[:250])
+    full = R.run_bars("BTCUSDT", bars)
+    assert [r["trend_dir"] for r in short.rows] == [
+        r["trend_dir"] for r in full.rows[:250]
+    ]
+    assert short.rows[-1]["trend_dir"] == 1
 
 
 def test_missing_range_pct_blocks_range_and_squeeze():
