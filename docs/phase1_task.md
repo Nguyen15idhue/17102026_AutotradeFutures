@@ -361,7 +361,7 @@ Vì sao tách khỏi P1.2: P1.2 đã pass cổng theo phạm vi cũ (chỉ cần
 | Khung 4h aggregate | ✅ | `bars.py` thêm `4h` (240 nến 1m, `NEED=240`) + 4 test mới trong `test_bars.py` (OHLCV, cửa sổ thiếu bị bỏ, gap báo, 1h/15m không đổi) — 18 test pass | 18/11/2026 |
 | Migration cột `regime.trend_dir` | ✅ | `store._migrate()` (PRAGMA → ALTER, idempotent) + persist ghi/đọc; 2 test mới (DB cũ giữ dữ liệu, round-trip `trend_dir`), 8 test persist pass | 18/11/2026 |
 | Hash replay mới được ghi lại | ✅ | `replay.canonical_line` format v2 (thêm `trend_dir`), `params_sha256` bump `hash_format=2`; replay 2 lần cùng hash `55530fb14020ab7e5920b2faec16ce9e4171dd16907d6c77f6e02ce8354e6ebf`, `params=2a680166…30adba5`; report `docs/reports/p1.2-spotcheck.json` cập nhật | 18/11/2026 |
-| CI job `engine` | ⬜ Chưa | | |
+| CI job `engine` | ✅ | `.github/workflows/ci.yml` thêm job `engine` (3.12, `ruff check` + `ruff format --check` + `pytest -q`, `working-directory: engine`); YAML parse hợp lệ (2 job: `engine`, `mock`) | 18/11/2026 |
 
 ### Ghi chú
 

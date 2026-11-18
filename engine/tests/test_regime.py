@@ -176,9 +176,7 @@ def test_trend_dir_has_no_lookahead():
     bars = _rising_bars(260)
     short = R.run_bars("BTCUSDT", bars[:250])
     full = R.run_bars("BTCUSDT", bars)
-    assert [r["trend_dir"] for r in short.rows] == [
-        r["trend_dir"] for r in full.rows[:250]
-    ]
+    assert [r["trend_dir"] for r in short.rows] == [r["trend_dir"] for r in full.rows[:250]]
     assert short.rows[-1]["trend_dir"] == 1
 
 

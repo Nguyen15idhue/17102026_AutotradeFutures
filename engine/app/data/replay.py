@@ -216,9 +216,7 @@ def run_bars(
             raw_transitions += 1
         prev_label, prev_raw = res.label.value, res.raw_label.value
         final_lines.append(canonical_line(ts, res.label.value, res.confidence, f, res.trend_dir))
-        raw_lines.append(
-            canonical_line(ts, res.raw_label.value, conf, f, direction_for(f))
-        )
+        raw_lines.append(canonical_line(ts, res.raw_label.value, conf, f, direction_for(f)))
 
     start_ts = bars15[0]["open_time"] if bars15 else 0
     end_ts = bars15[-1]["open_time"] if bars15 else 0
