@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.8 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.0
+Phiên bản: 1.9 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.0
 
 ---
 
@@ -454,9 +454,32 @@ Trend là chiến lược tần suất thấp, ăn bằng đuôi dày: vào khi 
 
 Backtest ở bước này không phải để "tìm bộ tham số đẹp", mà để **chứng minh chiến lược không âm sau phí** và để có baseline so với mock/live sau này.
 
+### Ước lượng tần suất trước backtest (baseline 18/11/2026)
+
+Đo trên **BTC/ETH/SOL × 168 ngày** (2026-06-01 → 11-15) với regime hiện có. Đây **không phải backtest**: điều kiện vào lệnh là proxy, thiếu cấu trúc HH/HL và impulse thật; dùng để đặt kỳ vọng, không để kết luận.
+
+| Chiến lược | Cách đo | Tần suất | Ngoại suy 10 symbol |
+|---|---|---|---|
+| MR | `\|z\| ≥ 2` tại nến đóng (trong RANGE) | 0,27–0,36 /ngày/symbol | ~3 /ngày |
+| MR | Wick ra biên + đóng lại trong band | 0,43–0,58 /ngày/symbol | ~5 /ngày |
+| MR | Nến trước `\|z\|≥2`, nến này đóng vào band | 0,12–0,13 /ngày/symbol | ~1,2 /ngày |
+| MR | Đọc literal `\|z\|≥2` **và** đóng trong band | 0,00–0,01 /ngày/symbol | ~0 → **phải chốt lại định nghĩa** |
+| Trend | Regime-eligible (TREND + `trend_dir`) | 25–27 nến/ngày/symbol | — |
+| Trend | Mô phỏng vòng đời lệnh: chạm EMA20 + RSI + EMA 1h/4h cùng chiều + hồi 30–61,8% (proxy) + volume giảm | 0,33–0,47 lệnh/ngày/symbol | **~3,9 lệnh/ngày ≈ 27/tuần** |
+
+Ghi chú:
+
+- **Điều kiện MR trong spec tự mâu thuẫn** ("z ≤ −2" và "đóng quay lại trong band" không thể cùng đúng). Phải chốt một trong ba cách đọc ở bảng trên (khuyến nghị: wick ra biên + đóng vào band) trước khi code.
+- Trend ước lượng **cao hơn ~10 lần** dự phóng của spec (3–8 lệnh/tuần/25 symbol) vì proxy chưa có structure + impulse thật → coi là **cận trên**.
+- Long/short lệch **≈1,76:1** trong giai đoạn này (thị trường tăng) → nhánh short sẽ có ít mẫu hơn long.
+- Win 54,1% và R trung bình 0,37 **chưa có phí/funding/slippage** → **không phải bằng chứng edge**, chỉ dùng cho tần suất.
+- Kỳ vọng khi backtest thật: MR 0,3–0,6 tín hiệu/ngày/symbol; Trend 0,3–0,5 lệnh/ngày/symbol. Lệch quá 2× → điều kiện cài đặt khác spec.
+- Cap live 5 lệnh/ngày + `max_positions_per_strategy = 2` sẽ **hạn chế Trend** nếu proxy đúng.
+- Universe backtest nên chạy 10–15 symbol để đủ mẫu; dữ liệu hiện mới có 3 symbol (BTC/ETH/SOL) → phải tải thêm.
+
 ### Việc cần làm
 
-1. Implement MR đúng spec: z ≤ −2 / ≥ +2, đóng nến trong band, `bbw_pct > 15`, spread < 2bps, không blackout.
+1. Implement MR: chốt cách đọc điều kiện vào lệnh (khuyến nghị: wick ra biên + đóng lại trong band — xem baseline), `bbw_pct > 15`, spread < 2 bps, không blackout.
 2. Entry MR: limit post-only `best_bid + 1 tick`, TTL 2 nến, không đuổi giá quá 0,3 ATR.
 3. Exit MR: SL `range_low − 1,2 ATR`, TP mid, time stop 12 nến, regime flip đóng ngay.
 4. Implement Trend đối xứng: `trend_dir` 3 nến + khớp EMA 1h, hồi 30–61,8%, chạm EMA20/50, RSI, entry **market tại open nến 1h** + guard spread 2 bps, SL 1,5×ATR, trailing 2×ATR sau 1,5×ATR, time stop 36 nến.
@@ -778,3 +801,4 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | 18/11/2026 | 1.6 | **Đổi phạm vi theo spec v2.0:** bỏ P1.5 (Squeeze), Trend chạy live long + short ngay trong P1.8 thay vì shadow rồi phase 3; mock 4 → 2 tuần; live 4 vị thế, portfolio 2,0%, correlated 0,5%; lộ trình 22 → ~15 tuần |
 | 18/11/2026 | 1.7 | Tách phần bổ sung `trend_dir` + khung 4h thành **P1.2b** (trước đây gọi tạm là "B2"), có cổng nghiệm thu và dòng trạng thái riêng; bỏ toàn bộ nhãn B1–B8 khỏi tài liệu để chỉ còn một hệ P1.x |
 | 18/11/2026 | 1.8 | **P1.2b xong:** khung 4h, `trend_dir` (field, bền 3 nến, 0 ngoài TREND), migration `regime.trend_dir`, hash replay format v2 (`55530fb1…`), script `p1.2b-check.ps1`, CI job `engine`; gate A đổi sang đo tương đối (2,44×), gate D giữ fail 50,85% có ghi chú |
+| 18/11/2026 | 1.9 | P1.4: thêm baseline tần suất đo trên BTC/ETH/SOL (MR 0,3–0,6 tín hiệu/ngày/symbol; Trend proxy 0,33–0,47 lệnh/ngày/symbol); ghi rõ điều kiện MR trong spec tự mâu thuẫn và phải chốt cách đọc trước khi code |
