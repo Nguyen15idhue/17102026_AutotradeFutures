@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS bars(
 CREATE TABLE IF NOT EXISTS features(
   symbol TEXT NOT NULL, tf TEXT NOT NULL, ts INTEGER NOT NULL,
   atr REAL, adx REAL, bb_mid REAL, bb_up REAL, bb_dn REAL, bbw REAL,
-  bbw_pct REAL, z REAL, vol_pct REAL, range_24h REAL, range_pos REAL,
+  bbw_pct REAL, z REAL, vol_pct REAL, range_24h REAL, range_pct REAL, range_pos REAL,
   ema50 REAL, ema200 REAL, oi REAL, funding REAL, allow_mr INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY(symbol, tf, ts));
 CREATE TABLE IF NOT EXISTS regime(

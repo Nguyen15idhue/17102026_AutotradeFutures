@@ -12,8 +12,8 @@ from .types import RegimeInputs, RegimeLabel, RegimeResult
 ADX_RANGE_MAX = 20.0
 ADX_TREND_MIN = 22.0
 SQUEEZE_BBW_PCT_MAX = 20.0
-SQUEEZE_RANGE_ATR_MULT = 1.5
-RANGE_ATR_MULT = 2.5
+SQUEEZE_RANGE_PCT_MAX = 30.0
+RANGE_RANGE_PCT_MAX = 50.0
 RANGE_BBW_PCT_MIN = 15.0
 RANGE_VOL_PCT_MIN = 20.0
 RANGE_VOL_PCT_MAX = 60.0
@@ -65,30 +65,22 @@ def classify(inputs: RegimeInputs) -> tuple[RegimeLabel, float, str]:
 
     checks: list[tuple[str, bool, str]] = []
     bbw_pct, vol_pct = f.get("bbw_pct"), f.get("vol_pct")
-    adx, atr, rng = f.get("adx"), f.get("atr"), f.get("range_24h")
+    adx, rng_pct = f.get("adx"), f.get("range_pct")
     vol5, vol20 = f.get("vol_sma5"), f.get("vol_sma20")
 
-    # SQUEEZE: bbw_pct <= 20 va range < 1.5*ATR va volume giam
-    if bbw_pct is None or atr is None or rng is None or vol5 is None or vol20 is None:
+    # SQUEEZE: bbw_pct <= 20, range_24h/ATR trong 30% thap nhat, volume giam
+    if bbw_pct is None or rng_pct is None or vol5 is None or vol20 is None:
         checks.append(("squeeze", False, "missing"))
     else:
         checks.append(("squeeze", bbw_pct <= SQUEEZE_BBW_PCT_MAX, f"bbw_pct={_fmt(bbw_pct)}"))
-        checks.append(
-            (
-                "squeeze",
-                rng < SQUEEZE_RANGE_ATR_MULT * atr,
-                f"range/atr={_fmt(rng / atr if atr else None)}",
-            )
-        )
+        checks.append(("squeeze", rng_pct < SQUEEZE_RANGE_PCT_MAX, f"range_pct={_fmt(rng_pct)}"))
         checks.append(("squeeze", vol5 < vol20, f"vol5={_fmt(vol5)},vol20={_fmt(vol20)}"))
-    # RANGE: adx<20, range<2.5*ATR, vol_pct 20..60, bbw_pct>15
-    if adx is None or atr is None or rng is None or vol_pct is None or bbw_pct is None:
+    # RANGE: adx<20, range_24h/ATR duoi trung vi, vol_pct 20..60, bbw_pct>15
+    if adx is None or rng_pct is None or vol_pct is None or bbw_pct is None:
         checks.append(("range", False, "missing"))
     else:
         checks.append(("range", adx < ADX_RANGE_MAX, f"adx={_fmt(adx)}"))
-        checks.append(
-            ("range", rng < RANGE_ATR_MULT * atr, f"range/atr={_fmt(rng / atr if atr else None)}")
-        )
+        checks.append(("range", rng_pct < RANGE_RANGE_PCT_MAX, f"range_pct={_fmt(rng_pct)}"))
         checks.append(
             ("range", RANGE_VOL_PCT_MIN <= vol_pct <= RANGE_VOL_PCT_MAX, f"vol_pct={_fmt(vol_pct)}")
         )

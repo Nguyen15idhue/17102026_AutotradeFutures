@@ -6,7 +6,9 @@
   thieu mau -> None (fallback: khong trade) theo quyet dinh P1.2.
 - vol_pct: percentile cua realized vol 1h (sqrt tong binh phuong 4 log-return 15m)
   trong 30 ngay (2880 nen) — spec §6.2, KHONG phai percentile volume.
-- range_24h: 96 nen 15m; oi/funding: optional, thieu -> None.
+- range_24h: 96 nen 15m; range_pct: percentile 90 ngay cua range_24h/ATR
+  (chuan hoa de so sanh cung don vi — spec goc ghi range_24h < k*ATR la sai thu nguyen).
+  oi/funding: optional, thieu -> None.
 
 Tat ca tinh 1 luot (O(n log n) cho percentile) de replay ~100 ngay khong cho.
 """
@@ -19,10 +21,12 @@ from collections import deque
 
 BBW_LOOKBACK = 90 * 96  # 8640 nen 15m
 VOL_LOOKBACK = 30 * 96  # 2880 nen
+RANGE_LOOKBACK = 90 * 96  # percentile cua range_24h/ATR, cung 90 ngay
 RANGE_N = 96
 RV_N = 4  # realized vol 1h = 4 nen 15m
 BBW_MIN_SAMPLES = BBW_LOOKBACK  # du 90 ngay moi co percentile (fallback = None)
 VOL_MIN_SAMPLES = VOL_LOOKBACK
+RANGE_MIN_SAMPLES = RANGE_LOOKBACK
 MIN_BBW_SAMPLE = 20  # so mau toi thieu de bbw ton tai (chi dung trong test cu)
 
 
@@ -212,6 +216,7 @@ def compute_series(
     *,
     bbw_min_samples: int = BBW_MIN_SAMPLES,
     vol_min_samples: int = VOL_MIN_SAMPLES,
+    range_min_samples: int = RANGE_MIN_SAMPLES,
     oi: dict[int, float] | None = None,
     funding: dict[int, float] | None = None,
 ) -> list[dict | None]:
@@ -243,14 +248,24 @@ def compute_series(
         rv[i] = realized_vol_1h(closes, i)
 
     bbw_win, vol_win = _PctWindow(BBW_LOOKBACK), _PctWindow(VOL_LOOKBACK)
+    range_win = _PctWindow(RANGE_LOOKBACK)
     out: list[dict | None] = [None] * n
+    last_range_ratio: float | None = None
     for i in range(n):
         # cua so phan vi: chi mau QUA KHU (j < i)
         if i > 0:
             bbw_win.add(i - 1, bbw[i - 1])
             vol_win.add(i - 1, rv[i - 1])
+            range_win.add(i - 1, last_range_ratio)
         bbw_win.drop_before(i - BBW_LOOKBACK)
         vol_win.drop_before(i - VOL_LOOKBACK)
+        range_win.drop_before(i - RANGE_LOOKBACK)
+
+        # range_24h/ATR: tinh ca cho nen khong hop le de cua so percentile lien tuc
+        seg = bars[max(0, i - RANGE_N + 1) : i + 1]
+        hi, lo = max(b["h"] for b in seg), min(b["l"] for b in seg)
+        atr_i = atr_s[i]
+        last_range_ratio = (hi - lo) / atr_i if atr_i else None
 
         if not bars[i].get("closed"):
             continue
@@ -271,14 +286,15 @@ def compute_series(
         cur_rv = rv[i]
         bbw_pct = bbw_win.pct(cur_bbw, bbw_min_samples)
         vol_pct = vol_win.pct(cur_rv, vol_min_samples) if cur_rv is not None else None
-        seg = bars[max(0, i - RANGE_N + 1) : i + 1]
-        hi, lo = max(b["h"] for b in seg), min(b["l"] for b in seg)
+        range_pct = range_win.pct(last_range_ratio, range_min_samples) if last_range_ratio else None
         span = (hi - lo) or 1.0
         warmup = []
         if bbw_pct is None:
             warmup.append("bbw_pct")
         if vol_pct is None:
             warmup.append("vol_pct")
+        if range_pct is None:
+            warmup.append("range_pct")
         if ema50_s[i] is None:
             warmup.append("ema50")
         if ema200_s[i] is None:
@@ -299,6 +315,8 @@ def compute_series(
             "vol_pct": vol_pct,
             "rv_1h": cur_rv,
             "range_24h": hi - lo,
+            "range_pct": range_pct,
+            "range_ratio": last_range_ratio,
             "range_pos": (closes[i] - lo) / span,
             "vol_sma5": vol5_s[i],
             "vol_sma20": vol20_s[i],

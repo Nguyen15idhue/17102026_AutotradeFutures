@@ -168,6 +168,31 @@ def test_oi_funding_attached_by_ts():
     assert s[30]["oi"] == 999.0 and s[30]["funding"] == -0.0002
 
 
+def test_range_pct_matches_percentile_of_past_ratio():
+    bars = synth(120, drift=0.1, noise=0.6, seed=23)
+    s = F.compute_series(bars, bbw_min_samples=5, vol_min_samples=5, range_min_samples=5)
+    i = 100
+    closes = [b["c"] for b in bars]
+    atr = F.atr_series([b["h"] for b in bars], [b["l"] for b in bars], closes)
+    ratios = []
+    for j in range(i):
+        if atr[j] is None:
+            continue
+        seg = bars[max(0, j - F.RANGE_N + 1): j + 1]
+        hi, lo = max(b["h"] for b in seg), min(b["l"] for b in seg)
+        ratios.append((hi - lo) / atr[j])
+    expected = F.pct_rank(ratios, s[i]["range_ratio"])
+    assert s[i]["range_pct"] == pytest.approx(expected)
+    assert s[i]["range_ratio"] == pytest.approx(s[i]["range_24h"] / s[i]["atr"])
+
+
+def test_range_pct_warmup_is_none_and_listed():
+    s = F.compute_series(
+        synth(60, drift=0.1, noise=0.4, seed=29), bbw_min_samples=5, vol_min_samples=5
+    )
+    assert s[40]["range_pct"] is None and "range_pct" in s[40]["warmup"]
+
+
 def test_compute_at_matches_series():
     bars = synth(120, drift=0.1, noise=0.5, seed=51)
     s = F.compute_series(bars)

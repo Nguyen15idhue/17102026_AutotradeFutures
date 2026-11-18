@@ -20,6 +20,7 @@ _FEATURE_COLS = (
     "z",
     "vol_pct",
     "range_24h",
+    "range_pct",
     "range_pos",
     "ema50",
     "ema200",
