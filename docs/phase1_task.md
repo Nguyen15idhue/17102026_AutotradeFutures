@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.4 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.10
+Phiên bản: 1.5 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.10
 
 ---
 
@@ -299,7 +299,7 @@ Toàn bộ tính trên **nến đã đóng**, không bao giờ dùng nến đang
 - **vol_pct** = percentile của realized vol 1h (`sqrt(Σ 4 log-return 15m bình phương)`), 30 ngày — không phải percentile volume. Percentile luôn tính trên mẫu quá khứ, không gồm nến hiện tại.
 - **CRISIS bằng chứng thật:** ngày 2026-02-06 (BTC −4,245% trong 1 nến 15m, dữ liệu 2025-01→2026-11) → 6 nến CRISIS. Trong riêng 2026-06→11 mức giảm lớn nhất chỉ −3,0% nên phải tải thêm lịch sử.
 - **FE: không áp dụng** (dashboard v1 là P1.6). Smoke: `node dashboard/server.js` → `/healthz` 200, trang chủ 200, `server.js` không đọc DB/không giữ secret.
-- **Bỏ DuckDB** (spec tuần 2 ghi "Parquet + DuckDB query"): dùng pyarrow đọc/ghi trực tiếp, replay bằng Python thuần; thêm `pyarrow>=17` vào requirements. **Chưa build lại image engine** trên máy dev (Docker daemon tắt) — phải chạy `docker compose --profile app build engine` trước P1.3.
+- **Bỏ DuckDB** (spec tuần 2 ghi "Parquet + DuckDB query"): dùng pyarrow đọc/ghi trực tiếp, replay bằng Python thuần; thêm `pyarrow>=17` vào requirements. **Đã build lại image và xác minh trong container 18/11/2026:** pyarrow 26.0.1, `bars/features/regime` có trong DB, `params_sha256` khớp host, 3 service healthy (mock + engine + dashboard), dashboard `/healthz` 200, `docker history` không có secret.
 - Dữ liệu không commit: `data/market/**` (Parquet), `data/p1.2.db`, report runtime; chỉ commit `docs/reports/p1.2-spotcheck.json` (3,2 KB).
 
 ---
@@ -643,7 +643,7 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 |---|---|---|---|---|
 | P1.0 | Xác minh môi trường | ⬜ Chưa | | |
 | P1.1 | Exchange adapter | ⬜ Chưa | | |
-| P1.2 | Data + Regime | ✅ Xong | 18/11/2026 | 74 test mới; replay hash tất định; 5/5 cổng spot-check; container chưa build lại (Docker daemon tắt) |
+| P1.2 | Data + Regime | ✅ Xong | 18/11/2026 | 74 test mới; replay hash tất định; 5/5 cổng spot-check; image engine build lại + 3 service healthy |
 | P1.3 | Risk + Executor | ⬜ Chưa | | |
 | P1.4 | MR + backtest | ⬜ Chưa | | |
 | P1.5 | Squeeze + gating | ⬜ Chưa | | |
@@ -664,3 +664,4 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 | 17/11/2026 | 1.2 | P1.8: bổ sung live smoke test ≤ 0,05 USD làm bước 0 bắt buộc + checklist + dòng kết quả |
 | 17/11/2026 | 1.3 | Thêm mục P1.1.1: soak là service compose riêng + `/check72h` + dọn sau 7 ngày; ghi ngoại lệ inbound Telegram read-only trong service soak |
 | 18/11/2026 | 1.4 | P1.2 xong: `range_24h` chuẩn hoá bằng percentile (range_24h/ATR) vì so trực tiếp với ATR là sai thứ nguyên (0% nến thoả); cổng "tuần sideway" đổi sang A/B đo khả năng phân biệt; vol_pct theo realized vol 1h; CRISIS 1 nến; BBW cần đủ 8640 mẫu; bỏ DuckDB; FE không áp dụng |
+| 18/11/2026 | 1.5 | P1.2: xác minh lại trong container sau khi bật Docker — image engine build lại (pyarrow 26.0.1), 3 service healthy, dashboard 200, không secret trong history |
