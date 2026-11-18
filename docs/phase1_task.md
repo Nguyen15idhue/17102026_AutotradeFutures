@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.7 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.0
+Phiên bản: 1.8 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.0
 
 ---
 
@@ -345,12 +345,12 @@ Vì sao tách khỏi P1.2: P1.2 đã pass cổng theo phạm vi cũ (chỉ cần
 
 ### Checklist test
 
-- [ ] Test đối xứng: up `trend_dir=+1`, down `trend_dir=−1`, thiếu mẫu EMA → 0
-- [ ] Test streak: 2 nến → 0, nến thứ 3 → `±1`; đổi chiều → reset về 0
-- [ ] Test 4h aggregate: 240 nến 1m, cửa sổ thiếu bị bỏ, gap báo
-- [ ] Test migration: DB cũ (không cột) mở lên vẫn chạy, `trend_dir=0`
-- [ ] Test không look-ahead: thêm nến tương lai → `trend_dir` tại T không đổi
-- [ ] `pytest` + `ruff` xanh; replay 2 lần cùng hash mới; report cập nhật
+- [x] Test đối xứng: up `trend_dir=+1`, down `trend_dir=−1`, thiếu mẫu EMA → 0 — `test_trend_both_directions`, `test_direction_for_missing_or_equal_is_zero`
+- [x] Test streak: 2 nến → 0, nến thứ 3 → `±1`; đổi chiều → reset về 0 — `test_trend_dir_confirmed_after_three_bars`, `test_trend_dir_resets_when_direction_flips`
+- [x] Test 4h aggregate: 240 nến 1m, cửa sổ thiếu bị bỏ, gap báo — 4 test trong `test_bars.py`
+- [x] Test migration: DB cũ (không cột) mở lên vẫn chạy, `trend_dir=0` — `test_migration_adds_trend_dir_to_old_db`
+- [x] Test không look-ahead: thêm nến tương lai → `trend_dir` tại T không đổi — `test_trend_dir_has_no_lookahead`
+- [x] `pytest` + `ruff` xanh; replay 2 lần cùng hash mới; report cập nhật — 128 passed, ruff check + format sạch; hash `55530fb1…`
 
 ### Kết quả đã đạt
 
@@ -366,6 +366,7 @@ Vì sao tách khỏi P1.2: P1.2 đã pass cổng theo phạm vi cũ (chỉ cần
 ### Ghi chú
 
 - **Script kiểm tra:** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ps\p1.2b-check.ps1 -Mode All` → 3 mục (test, replay, trend_dir trên dữ liệu thật). Kết quả 18/11/2026: `128 passed`; hash `55530fb1…`; `trend_dir up 4324 / down 4442`, 0 vi phạm bền 3 nến.
+- **FE regression (18/11/2026):** `docker compose --profile app up -d --build binance-demo-server engine dashboard` → 3 service `healthy`; `GET /healthz` 200, trang chủ 200; log engine chỉ có `clock.sync` + `engine.start`, không traceback. Dashboard vẫn là skeleton (widget là P1.6). Không chạy service `soak`.
 - `trend_dir` là **field**, không phải nhãn thứ 6 → giữ nguyên schema, dashboard, mapping chiến lược.
 - **Luật khớp EMA trên 1h và `direction_conflict` kiểm ở tầng signal (P1.4/P1.6)**, không ở detector: detector chạy trên 15m nên không tự thấy 1h. Detector chỉ chịu trách nhiệm "hướng 15m + độ bền 3 nến"; strategy đọc thêm 1h và bỏ tín hiệu nếu lệch.
 - Không đổi ngưỡng nào của P1.2 trong bước này. Nếu thấy cần đổi → dừng, đó là thay đổi chiến lược, phải walk-forward (AGENTS §10).
@@ -752,7 +753,7 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | P1.0 | Xác minh môi trường | ⬜ Chưa | | |
 | P1.1 | Exchange adapter | ⬜ Chưa | | |
 | P1.2 | Data + Regime | ✅ Xong | 18/11/2026 | 74 test mới; replay hash tất định; **spot-check 4/5 sau P1.2b** (gate D fail 50,85% — đã biết, xem Ghi chú P1.2b); image engine build lại + 3 service healthy |
-| P1.2b | `trend_dir` + khung 4h | ⬜ Chưa | | Bổ sung v2.0 cho Trend short; xem mục P1.2b |
+| P1.2b | `trend_dir` + khung 4h | ✅ Xong | 18/11/2026 | 9 test mới (tổng 128); migration DB cũ; hash mới `55530fb1…`; CI job engine; 3 service healthy; gate D của P1.2 fail 50,85% (đã biết) |
 | P1.3 | Risk + Executor | ⬜ Chưa | | |
 | P1.4 | MR + backtest | ⬜ Chưa | | |
 | P1.5 | ~~Squeeze + gating~~ | ⛔ Huỷ | 18/11/2026 | Bỏ chiến lược, giữ nhãn SQUEEZE; gating chuyển sang P1.3/P1.6 (spec §6.1) |
@@ -776,3 +777,4 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | 18/11/2026 | 1.5 | P1.2: xác minh lại trong container sau khi bật Docker — image engine build lại (pyarrow 26.0.1), 3 service healthy, dashboard 200, không secret trong history |
 | 18/11/2026 | 1.6 | **Đổi phạm vi theo spec v2.0:** bỏ P1.5 (Squeeze), Trend chạy live long + short ngay trong P1.8 thay vì shadow rồi phase 3; mock 4 → 2 tuần; live 4 vị thế, portfolio 2,0%, correlated 0,5%; lộ trình 22 → ~15 tuần |
 | 18/11/2026 | 1.7 | Tách phần bổ sung `trend_dir` + khung 4h thành **P1.2b** (trước đây gọi tạm là "B2"), có cổng nghiệm thu và dòng trạng thái riêng; bỏ toàn bộ nhãn B1–B8 khỏi tài liệu để chỉ còn một hệ P1.x |
+| 18/11/2026 | 1.8 | **P1.2b xong:** khung 4h, `trend_dir` (field, bền 3 nến, 0 ngoài TREND), migration `regime.trend_dir`, hash replay format v2 (`55530fb1…`), script `p1.2b-check.ps1`, CI job `engine`; gate A đổi sang đo tương đối (2,44×), gate D giữ fail 50,85% có ghi chú |
