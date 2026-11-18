@@ -365,6 +365,7 @@ Vì sao tách khỏi P1.2: P1.2 đã pass cổng theo phạm vi cũ (chỉ cần
 
 ### Ghi chú
 
+- **Script kiểm tra:** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ps\p1.2b-check.ps1 -Mode All` → 3 mục (test, replay, trend_dir trên dữ liệu thật). Kết quả 18/11/2026: `128 passed`; hash `55530fb1…`; `trend_dir up 4324 / down 4442`, 0 vi phạm bền 3 nến.
 - `trend_dir` là **field**, không phải nhãn thứ 6 → giữ nguyên schema, dashboard, mapping chiến lược.
 - **Luật khớp EMA trên 1h và `direction_conflict` kiểm ở tầng signal (P1.4/P1.6)**, không ở detector: detector chạy trên 15m nên không tự thấy 1h. Detector chỉ chịu trách nhiệm "hướng 15m + độ bền 3 nến"; strategy đọc thêm 1h và bỏ tín hiệu nếu lệch.
 - Không đổi ngưỡng nào của P1.2 trong bước này. Nếu thấy cần đổi → dừng, đó là thay đổi chiến lược, phải walk-forward (AGENTS §10).
