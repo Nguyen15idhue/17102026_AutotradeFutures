@@ -227,6 +227,12 @@ def compute_series(
     ema50_s = ema_series(closes, 50)
     ema200_s = ema_series(closes, 200)
     mid_s, sd_s = _rolling_mean_std(closes, 20)
+    volumes = [float(b.get("v") or 0.0) for b in bars]
+    pv = [0.0]
+    for v in volumes:
+        pv.append(pv[-1] + v)
+    vol5_s = [(pv[i + 1] - pv[i + 1 - 5]) / 5 if i >= 4 else None for i in range(n)]
+    vol20_s = [(pv[i + 1] - pv[i + 1 - 20]) / 20 if i >= 19 else None for i in range(n)]
 
     bbw: list[float | None] = [None] * n
     rv: list[float | None] = [None] * n
@@ -294,6 +300,8 @@ def compute_series(
             "rv_1h": cur_rv,
             "range_24h": hi - lo,
             "range_pos": (closes[i] - lo) / span,
+            "vol_sma5": vol5_s[i],
+            "vol_sma20": vol20_s[i],
             "ema50": ema50_s[i],
             "ema200": ema200_s[i],
             "oi": (oi or {}).get(ts),

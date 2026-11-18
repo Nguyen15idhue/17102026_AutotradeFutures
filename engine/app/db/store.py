@@ -27,6 +27,21 @@ CREATE TABLE IF NOT EXISTS events(
 CREATE TABLE IF NOT EXISTS incidents(
   id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL,
   detail TEXT NOT NULL, ts_ms INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS bars(
+  symbol TEXT NOT NULL, tf TEXT NOT NULL, open_time INTEGER NOT NULL,
+  o REAL NOT NULL, h REAL NOT NULL, l REAL NOT NULL, c REAL NOT NULL,
+  v REAL NOT NULL DEFAULT 0, closed INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY(symbol, tf, open_time));
+CREATE TABLE IF NOT EXISTS features(
+  symbol TEXT NOT NULL, tf TEXT NOT NULL, ts INTEGER NOT NULL,
+  atr REAL, adx REAL, bb_mid REAL, bb_up REAL, bb_dn REAL, bbw REAL,
+  bbw_pct REAL, z REAL, vol_pct REAL, range_24h REAL, range_pos REAL,
+  ema50 REAL, ema200 REAL, oi REAL, funding REAL, allow_mr INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(symbol, tf, ts));
+CREATE TABLE IF NOT EXISTS regime(
+  symbol TEXT NOT NULL, ts INTEGER NOT NULL, label TEXT NOT NULL,
+  confidence REAL NOT NULL DEFAULT 0, raw_label TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT '', PRIMARY KEY(symbol, ts));
 """
 
 
