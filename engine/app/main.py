@@ -54,7 +54,7 @@ def build(cfg=None, rest_client=None, db_path: str | None = None) -> dict:
     )
     mgr = orders_mod.OrderManager(con, rest)
     rec = reconcile_mod.Reconciler(con, rest, alerter)
-    ex = Executor(con, rest, cfg, mgr=mgr)
+    ex = Executor(con, rest, cfg, mgr=mgr, alerter=alerter)
     return {
         "cfg": cfg,
         "rest": rest,

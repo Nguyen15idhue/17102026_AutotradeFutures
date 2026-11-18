@@ -20,11 +20,14 @@ CFG = load_cfg(ROOT / "config" / "mvp.mock.yaml")
 class FakeRest:
     """Ghi lai moi call; tra response toi thieu giong mock."""
 
-    def __init__(self, fill_status: str = "FILLED", avg: str = "100.0") -> None:
+    def __init__(
+        self, fill_status: str = "FILLED", avg: str = "100.0", fail_algo_times: int = 0
+    ) -> None:
         self.calls: list[tuple[str, str, dict, float]] = []
         self.fill_status = fill_status
         self.avg = avg
         self.deny_post = False
+        self.fail_algo_times = fail_algo_times
 
     def get(self, path, params=None, signed=True, max_tries=4):
         self.calls.append(("GET", path, dict(params or {}), time.monotonic()))
@@ -53,6 +56,9 @@ class FakeRest:
         self.calls.append(("POST", path, dict(params or {}), time.monotonic()))
         if self.deny_post:
             raise RuntimeError("khong duoc gui lenh")
+        if path == "/fapi/v1/algoOrder" and self.fail_algo_times > 0:
+            self.fail_algo_times -= 1
+            raise RuntimeError("algo down")
         if path == "/fapi/v1/algoOrder":
             return {"algoId": f"A{len(self.calls)}"}
         return {"orderId": f"O{len(self.calls)}"}
@@ -193,3 +199,33 @@ def test_format_step():
 
     assert fmt_step(0.75, 0.001) == "0.750"
     assert fmt_step(1.2, 0.1) == "1.2"
+
+
+class FakeAlerter:
+    def __init__(self):
+        self.sent: list[str] = []
+
+    def push(self, key, text):
+        self.sent.append(text)
+        return "queued"
+
+    def flush(self):
+        return len(self.sent)
+
+
+def test_sl_fail_after_retries_closes_market_and_halts(tmp_path):
+    con = connect(str(tmp_path / "p13.db"))
+    rest = FakeRest(fail_algo_times=3)
+    al = FakeAlerter()
+    ex = Executor(con, rest, CFG, sleep=lambda _s: None, alerter=al)
+    with pytest.raises(RuntimeError):
+        ex.open(mr_req(), inputs=inp())
+    # 1 entry + 1 market close, khong co SL nao duoc chap nhan
+    types = [c[2]["type"] for c in rest.posts("/fapi/v1/order")]
+    assert types == ["LIMIT", "MARKET"]
+    assert rest.posts("/fapi/v1/order")[-1][2]["reduceOnly"] == "true"
+    assert con.execute("SELECT value FROM runtime_state WHERE key='halted'").fetchone()[0] == "1"
+    assert al.sent and "dong market" in al.sent[0]
+    assert con.execute("SELECT status FROM signals").fetchone()[0] == "SL_FAILED"
+    assert con.execute("SELECT COUNT(*) FROM positions WHERE state='OPEN'").fetchone()[0] == 0
+    con.close()

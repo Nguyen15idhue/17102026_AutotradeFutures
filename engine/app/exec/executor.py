@@ -41,6 +41,7 @@ class Executor:
         mgr=None,
         now: Callable[[], int] = _now_ms,
         sleep: Callable[[float], None] = time.sleep,
+        alerter=None,
     ) -> None:
         self._con = con
         self._rest = rest
@@ -48,6 +49,7 @@ class Executor:
         self._mgr = mgr or orders_mod.OrderManager(con, rest)
         self._now = now
         self._sleep = sleep
+        self._alerter = alerter
 
     # -- snapshot -------------------------------------------------------------
     def _state(self, key: str, default: str = "") -> str:
@@ -171,8 +173,14 @@ class Executor:
 
         fill_price = float(fill.get("avgPrice") or fill.get("price") or req.entry)
         trigger = fmt_step(round_price(req.stop, inp.tick_size), inp.tick_size)
+        t_fill = self._now()
         # Bat bien: dat SL NGAY sau fill, truoc moi viec khac.
-        sl = self._mgr.place_algo(req.symbol, sl_side, "STOP_MARKET", trigger)
+        try:
+            sl = self._sl_with_retry(req.symbol, sl_side, trigger, qty, req.strategy_id)
+        except Exception:
+            self._signal(req, cid, "SL_FAILED", "sl_place_failed")
+            raise
+        sl_latency_ms = self._now() - t_fill
         sl_client = str(sl.get("client_id", ""))
         tp_client = ""
         if req.strategy_id == "mean_reversion" and req.tp is not None:
@@ -197,6 +205,7 @@ class Executor:
             "sl_id": sl_client,
             "tp_id": tp_client,
             "fill_price": fill_price,
+            "sl_latency_ms": sl_latency_ms,
         }
 
     # -- market snapshot (P1.3 tam thoi poll REST; WS market la P1.6) ----------
@@ -223,6 +232,37 @@ class Executor:
         return {"bid": bid, "ask": ask, "mid": mid, "spread_bps": spread_bps}
 
     # -- doi SL / dong lenh ---------------------------------------------------
+    def _sl_with_retry(
+        self, symbol: str, sl_side: str, trigger: str, qty: str, strategy: str
+    ) -> dict:
+        """Dat SL, retry theo config. That bai het -> dong market ngay + HALT + alert.
+
+        Vi sao dong market: vi the khong SL la rui ro khong gioi han — te hon nhieu
+        so voi viec dong bang taker phi.
+        """
+        tries = max(1, self._cfg.execution.max_retries)
+        last: Exception | None = None
+        for attempt in range(tries):
+            try:
+                return self._mgr.place_algo(symbol, sl_side, "STOP_MARKET", trigger)
+            except Exception as e:
+                last = e
+                log("warn", "exec.sl_retry", symbol=symbol, attempt=attempt + 1, error=str(e)[:120])
+                self._sleep(0.1 * (attempt + 1))
+        log("error", "exec.sl_fail", symbol=symbol, error=str(last)[:150])
+        try:
+            self._mgr.place(symbol, sl_side, "MARKET", qty, reduce_only=True)
+        except Exception as e:
+            log("error", "exec.sl_fail_close_fail", symbol=symbol, error=str(e)[:150])
+        self._halt(f"sl_place_failed:{strategy}:{symbol}")
+        if self._alerter:
+            self._alerter.push("sl_fail", f"SL fail {tries} lan — da dong market {symbol}")
+            try:
+                self._alerter.flush()
+            except Exception:
+                pass
+        raise RuntimeError(f"dat SL that bai sau {tries} lan: {symbol}")
+
     def _row(self, symbol: str):
         return self._con.execute(
             "SELECT amt, side, sl, sl_id FROM positions WHERE symbol=? AND state='OPEN'",

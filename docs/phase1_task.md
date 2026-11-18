@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.9 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.0
+Phiên bản: 1.10 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.0
 
 ---
 
@@ -411,19 +411,19 @@ Make-before-break nghĩa là: đặt SL mới **trước**, xóa SL cũ **sau**.
 
 ### Checklist test
 
-- [ ] Test risk: risk/lệnh vượt → chặn
-- [ ] Test risk: max positions → chặn
-- [ ] Test risk: vượt `max_positions_per_strategy` → chặn (dù còn slot)
-- [ ] Test risk: 2 vị thế cùng nhóm tương quan vượt cap → chặn
-- [ ] Test risk: portfolio risk → chặn
-- [ ] Test risk: margin > 60% → chặn
-- [ ] Test risk: daily loss → dừng 24h
-- [ ] Test risk: blackout ±45 phút → chặn
-- [ ] Test risk: stale data > 3s → chặn
-- [ ] Test sizing: notional sau round < minNotional → **huỷ lệnh**, không tăng size
-- [ ] Test trailing: SL dời lên, luôn còn ≥1 SL active
-- [ ] Test SL fail 3 lần → đóng market + alert
-- [ ] Test kill switch 3 cấp
+- [x] Test risk: risk/lệnh vượt → chặn (`test_effective_risk_never_exceeds` + `meta_risk_above_limit_rejected`)
+- [x] Test risk: max positions → chặn (`test_slot_global`)
+- [x] Test risk: vượt `max_positions_per_strategy` → chặn (dù còn slot) (`test_slot_strategy`)
+- [x] Test risk: 2 vị thế cùng nhóm tương quan vượt cap → chặn (`test_correlated_cap_same_group`)
+- [x] Test risk: portfolio risk → chặn (`test_portfolio_risk`)
+- [x] Test risk: margin > 60% → chặn (`test_margin_cap`)
+- [x] Test risk: daily loss → dừng 24h (`test_daily_loss`) + weekly/DD
+- [x] Test risk: blackout ±45 phút → chặn (`test_blackout`)
+- [x] Test risk: stale data > 3s → chặn (`test_stale_none_and_old`)
+- [x] Test sizing: notional sau round < minNotional → **huỷ lệnh**, không tăng size (`test_min_notional_rejects_without_increasing_size`)
+- [x] Test trailing: SL dời lên, luôn còn ≥1 SL active (`test_trail_places_before_cancel`)
+- [x] Test SL fail 3 lần → đóng market + alert (`test_sl_fail_after_retries_closes_market_and_halts`)
+- [x] Test kill switch 3 cấp (`test_killswitch` 6 ca + integration 35ms)
 
 ### Kết quả đã đạt
 
@@ -437,8 +437,8 @@ Make-before-break nghĩa là: đặt SL mới **trước**, xóa SL cũ **sau**.
 | Executor SL/TP/trailing (cả short) | ✅ | Thứ tự risk → place → fetch fill → SL (`STOP_MARKET closePosition`, short = BUY stop trên giá) → TP chỉ MR; SL trong <300ms sau fill (đo monotonic); trailing make-before-break chứng minh `place` trước `cancel`; cancel fail → HALT; 11 test `test_executor.py` | 18/11/2026 |
 | Trailing + recovery | ✅ | `trail()` đặt SL mới trước rồi cancel cũ, cập nhật `positions.sl/sl_id`; `close()` market `reduceOnly=true` → state CLOSED; `recovery.recover()` đặt lại SL thiếu, DB/exchange lệch → HALT + incident; 8 test `test_recovery.py` | 18/11/2026 |
 | Kill switch 3 cấp | ✅ | `ops/commands.py` 4 action (pause/resume/flatten/stop), action lạ → `REJECTED` + incident; pause chặn entry (`paused` trong risk); flatten đóng hết; stop set `halted=1`; ack `done_ms`; 6 test `test_killswitch.py`, đo < 2s | 18/11/2026 |
-| 11 test injection pass | 🟡 | 13 mục checklist có test tương ứng rải trong `test_config`/`test_risk_limits`/`test_risk_sizing`/`test_executor`/`test_recovery`/`test_killswitch`/`test_wiring` (207 test tổng); bảng đối chiếu 13→test ở Ghi chú | 18/11/2026 |
-| Integration trên mock | ✅ | `scripts/ps/p1.3-check.ps1 -Mode All` → test 207 pass; **SL 5ms sau fill**; **orphan sau close = 0**; **kill switch 23ms**, halted, orphan = 0 (18/11/2026) | 18/11/2026 |
+| 11 test injection pass | ✅ | 208 test engine pass; 13/13 mục checklist có test tương ứng (bảng đối chiếu ở Ghi chú); integration: SL 9ms, orphan 0, kill switch 35ms | 18/11/2026 |
+| Integration trên mock | ✅ | `scripts/ps/p1.3-check.ps1 -Mode All` (18/11/2026): test **208 pass**; **SL 9ms sau fill**; **orphan sau close = 0**; **kill switch 35ms**, halted, orphan = 0 | 18/11/2026 |
 
 ### Ghi chú
 
@@ -787,7 +787,7 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | P1.1 | Exchange adapter | ⬜ Chưa | | |
 | P1.2 | Data + Regime | ✅ Xong | 18/11/2026 | 74 test mới; replay hash tất định; **spot-check 4/5 sau P1.2b** (gate D fail 50,85% — đã biết, xem Ghi chú P1.2b); image engine build lại + 3 service healthy |
 | P1.2b | `trend_dir` + khung 4h | ✅ Xong | 18/11/2026 | 9 test mới (tổng 128); migration DB cũ; hash mới `55530fb1…`; CI job engine; 3 service healthy; gate D của P1.2 fail 50,85% (đã biết) |
-| P1.3 | Risk + Executor | ⬜ Chưa | | |
+| P1.3 | Risk + Executor | ✅ Xong | 18/11/2026 | Config loader, schema signals/equity/commands, risk fail-fast 18 lý do, sizing floor + reject minNotional, executor SL ngay sau fill (short = buy-stop), trailing make-before-break, recovery, kill switch 3 cấp; 208 test; integration: SL 9ms, orphan 0, kill 35ms |
 | P1.4 | MR + backtest | ⬜ Chưa | | |
 | P1.5 | ~~Squeeze + gating~~ | ⛔ Huỷ | 18/11/2026 | Bỏ chiến lược, giữ nhãn SQUEEZE; gating chuyển sang P1.3/P1.6 (spec §6.1) |
 | P1.6 | Paper + Dashboard + Trend live wiring | ⬜ Chưa | | |
@@ -812,3 +812,4 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | 18/11/2026 | 1.7 | Tách phần bổ sung `trend_dir` + khung 4h thành **P1.2b** (trước đây gọi tạm là "B2"), có cổng nghiệm thu và dòng trạng thái riêng; bỏ toàn bộ nhãn B1–B8 khỏi tài liệu để chỉ còn một hệ P1.x |
 | 18/11/2026 | 1.8 | **P1.2b xong:** khung 4h, `trend_dir` (field, bền 3 nến, 0 ngoài TREND), migration `regime.trend_dir`, hash replay format v2 (`55530fb1…`), script `p1.2b-check.ps1`, CI job `engine`; gate A đổi sang đo tương đối (2,44×), gate D giữ fail 50,85% có ghi chú |
 | 18/11/2026 | 1.9 | P1.4: thêm baseline tần suất đo trên BTC/ETH/SOL (MR 0,3–0,6 tín hiệu/ngày/symbol; Trend proxy 0,33–0,47 lệnh/ngày/symbol); ghi rõ điều kiện MR trong spec tự mâu thuẫn và phải chốt cách đọc trước khi code |
+| 18/11/2026 | 1.10 | **P1.3 xong:** config loader + validate; schema `positions` mở rộng + `signals`/`equity`/`commands`; risk fail-fast 18 lý do + sizing floor; executor SL ngay sau fill (short = buy-stop), trailing make-before-break, recovery; kill switch 3 cấp; `exchange/orders.py` thêm `fetch_order`/`cancel_order`/`cancel_algo`/`time_in_force`/`reduce_only` (soak chưa chạy); 208 test; integration SL 9ms, orphan 0, kill 35ms; phát hiện & sửa bug shape `openAlgoOrders`; ghi nhận reconcile chưa so algo |
