@@ -18,7 +18,24 @@ CREATE TABLE IF NOT EXISTS fills(
   price TEXT NOT NULL, fee TEXT DEFAULT '0', ts_ms INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS positions(
   symbol TEXT PRIMARY KEY, amt TEXT NOT NULL DEFAULT '0',
-  entry TEXT DEFAULT '0', updated_ms INTEGER NOT NULL);
+  entry TEXT DEFAULT '0', updated_ms INTEGER NOT NULL,
+  strategy_id TEXT NOT NULL DEFAULT '', side TEXT NOT NULL DEFAULT '',
+  sl TEXT NOT NULL DEFAULT '', tp TEXT NOT NULL DEFAULT '',
+  risk_usd REAL NOT NULL DEFAULT 0, opened_ms INTEGER NOT NULL DEFAULT 0,
+  state TEXT NOT NULL DEFAULT 'OPEN');
+CREATE TABLE IF NOT EXISTS signals(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, strategy_id TEXT NOT NULL,
+  symbol TEXT NOT NULL, side TEXT NOT NULL, ts_ms INTEGER NOT NULL,
+  entry TEXT NOT NULL DEFAULT '', stop TEXT NOT NULL DEFAULT '',
+  tp TEXT NOT NULL DEFAULT '', risk_usd REAL NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'NEW');
+CREATE TABLE IF NOT EXISTS equity(
+  ts_ms INTEGER PRIMARY KEY, equity REAL NOT NULL,
+  balance REAL NOT NULL DEFAULT 0, unrealized REAL NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS commands(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL,
+  payload TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'NEW',
+  created_ms INTEGER NOT NULL, done_ms INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS runtime_state(
   key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_ms INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS events(
@@ -49,6 +66,13 @@ CREATE TABLE IF NOT EXISTS regime(
 # Ly do: DB runtime (data/p1.2.db) da ton tai, CREATE TABLE IF NOT EXISTS khong them cot.
 _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("regime", "trend_dir", "INTEGER NOT NULL DEFAULT 0"),
+    ("positions", "strategy_id", "TEXT NOT NULL DEFAULT ''"),
+    ("positions", "side", "TEXT NOT NULL DEFAULT ''"),
+    ("positions", "sl", "TEXT NOT NULL DEFAULT ''"),
+    ("positions", "tp", "TEXT NOT NULL DEFAULT ''"),
+    ("positions", "risk_usd", "REAL NOT NULL DEFAULT 0"),
+    ("positions", "opened_ms", "INTEGER NOT NULL DEFAULT 0"),
+    ("positions", "state", "TEXT NOT NULL DEFAULT 'OPEN'"),
 )
 
 

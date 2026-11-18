@@ -430,6 +430,7 @@ Make-before-break nghĩa là: đặt SL mới **trước**, xóa SL cũ **sau**.
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
 | Config loader | ✅ | `engine/app/config.py` đọc `CONFIG_PATH`, validate cứng (allocation=1.0, risk ≤0,5%, live ≤0,25%, margin ≤60%, slot/chiến lược, secret cấm trong YAML); 12 test `test_config.py` pass, đọc đúng `config/mvp.{mock,live}.yaml` | 18/11/2026 |
+| Schema: positions + signals/equity/commands | ✅ | `store.py` mở rộng `positions` (strategy_id, side, sl, tp, risk_usd, opened_ms, state) + 3 bảng mới; migration idempotent; `test_schema_p13.py` 3 test (DB cũ giữ dữ liệu, round-trip bảng mới, migrate bản sao `data/p1.2.db`) — 143 test tổng pass | 18/11/2026 |
 | Risk engine đủ limit | ⬜ Chưa | | |
 | Slot/chiến lược + correlated cap | ⬜ Chưa | | |
 | Sizing + rounding + minNotional reject | ⬜ Chưa | | |
