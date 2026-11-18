@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 
-TF_MS = {"15m": 15 * 60_000, "1h": 60 * 60_000}
-NEED = {"15m": 15, "1h": 60}
+TF_MS = {"15m": 15 * 60_000, "1h": 60 * 60_000, "4h": 240 * 60_000}
+NEED = {"15m": 15, "1h": 60, "4h": 240}
 GAP_TOLERANCE = 0  # 1m phai lien tuc tuyet doi trong cua so
 WARN_EVERY = 1  # log 1 lan cho moi (symbol, gap) de khong spam
 

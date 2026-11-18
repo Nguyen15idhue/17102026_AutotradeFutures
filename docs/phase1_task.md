@@ -358,7 +358,7 @@ Vì sao tách khỏi P1.2: P1.2 đã pass cổng theo phạm vi cũ (chỉ cần
 |---|---|---|---|
 | `trend_dir` + đối xứng up/down | ⬜ Chưa | | |
 | Streak 3 nến + reset khi đổi chiều | ⬜ Chưa | | |
-| Khung 4h aggregate | ⬜ Chưa | | |
+| Khung 4h aggregate | ✅ | `bars.py` thêm `4h` (240 nến 1m, `NEED=240`) + 4 test mới trong `test_bars.py` (OHLCV, cửa sổ thiếu bị bỏ, gap báo, 1h/15m không đổi) — 18 test pass | 18/11/2026 |
 | Migration cột `regime.trend_dir` | ⬜ Chưa | | |
 | Hash replay mới được ghi lại | ⬜ Chưa | | |
 | CI job `engine` | ⬜ Chưa | | |

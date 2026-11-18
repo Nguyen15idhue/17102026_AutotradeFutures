@@ -46,6 +46,46 @@ def test_aggregate_15m_ohlcv():
     assert b["close_time"] == b["open_time"] + 15 * 60_000 - 1
 
 
+def m1_4h(n: int = 240, price: float = 100.0) -> list[dict]:
+    """Nến 1m bắt đầu đúng mốc 4h để test cửa sổ 4h."""
+    start = 1_700_000_000_000 // 14_400_000 * 14_400_000
+    return m1(n, start=start, price=price)
+
+
+def test_aggregate_4h_ohlcv():
+    src = m1_4h(240)
+    out, gaps = bars_mod.aggregate(src, "4h")
+    assert len(out) == 1 and gaps == []
+    b = out[0]
+    assert b["o"] == src[0]["o"] and b["c"] == src[-1]["c"]
+    assert b["h"] == max(x["h"] for x in src)
+    assert b["l"] == min(x["l"] for x in src)
+    assert b["v"] == pytest.approx(sum(x["v"] for x in src))
+    assert b["close_time"] == b["open_time"] + 240 * 60_000 - 1
+
+
+def test_aggregate_4h_incomplete_window_dropped():
+    src = m1_4h(480)
+    del src[300]  # thieu 1 nen 1m -> ca cua so 4h thu 2 bi bo
+    out, gaps = bars_mod.aggregate(src, "4h")
+    assert len(out) == 1 and gaps == []
+
+
+def test_aggregate_4h_missing_window_reported_as_gap():
+    src = m1_4h(720)
+    del src[240:480]  # mat tron cua so 4h thu 2
+    out, gaps = bars_mod.aggregate(src, "4h")
+    assert len(out) == 2
+    assert gaps == [(out[0]["close_time"], out[1]["open_time"])]
+
+
+def test_timeframes_declared():
+    assert set(bars_mod.TF_MS) == {"15m", "1h", "4h"}
+    assert bars_mod.NEED["4h"] == 240 and bars_mod.TF_MS["4h"] == 14_400_000
+    out, _ = bars_mod.aggregate(m1(60), "1h")
+    assert len(out) == 1  # 1h khong doi hanh vi
+
+
 def test_incomplete_window_dropped_and_gap_reported():
     src = m1(45)
     del src[15:30]  # mat ca cua so 15m thu 2
