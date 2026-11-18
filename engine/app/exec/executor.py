@@ -172,13 +172,14 @@ class Executor:
         trigger = fmt_step(round_price(req.stop, inp.tick_size), inp.tick_size)
         # Bat bien: dat SL NGAY sau fill, truoc moi viec khac.
         sl = self._mgr.place_algo(req.symbol, sl_side, "STOP_MARKET", trigger)
-        tp_id = ""
+        sl_client = str(sl.get("client_id", ""))
+        tp_client = ""
         if req.strategy_id == "mean_reversion" and req.tp is not None:
             tp_trigger = fmt_step(round_price(req.tp, inp.tick_size), inp.tick_size)
             tp = self._mgr.place_algo(req.symbol, sl_side, "TAKE_PROFIT_MARKET", tp_trigger)
-            tp_id = str(tp.get("exchange_id", ""))
+            tp_client = str(tp.get("client_id", ""))
 
-        self._persist(req, cid, fill_price, trigger, tp_id, decision, qty)
+        self._persist(req, cid, fill_price, trigger, sl_client, tp_client, decision, qty)
         self._signal(req, cid, "FILLED", "ok", decision.risk_usd)
         log(
             "info",
@@ -186,16 +187,93 @@ class Executor:
             symbol=req.symbol,
             side=req.side,
             qty=qty,
-            sl=str(sl.get("exchange_id", "")),
-            tp=tp_id,
+            sl=sl_client,
+            tp=tp_client,
         )
         return {
             "ok": True,
             "client_id": cid,
-            "sl_id": str(sl.get("exchange_id", "")),
-            "tp_id": tp_id,
+            "sl_id": sl_client,
+            "tp_id": tp_client,
             "fill_price": fill_price,
         }
+
+    # -- doi SL / dong lenh ---------------------------------------------------
+    def _row(self, symbol: str):
+        return self._con.execute(
+            "SELECT amt, side, sl, sl_id FROM positions WHERE symbol=? AND state='OPEN'",
+            (symbol,),
+        ).fetchone()
+
+    def _halt(self, reason: str) -> None:
+        now = self._now()
+        self._con.execute(
+            "INSERT INTO incidents(kind,detail,ts_ms) VALUES('halt',?,?)", (reason, now)
+        )
+        self._con.execute(
+            "INSERT INTO runtime_state(key,value,updated_ms) VALUES('halted','1',?) "
+            "ON CONFLICT(key) DO UPDATE SET value='1',updated_ms=excluded.updated_ms",
+            (now,),
+        )
+        log("error", "exec.halt", reason=reason)
+
+    def trail(self, symbol: str, new_stop: float) -> dict:
+        """Make-before-break: dat SL moi TRUOC, huy SL cu SAU.
+
+        Khong bao gio de vi the khong co SL trong luc doi — ke ca 200ms.
+        """
+        row = self._row(symbol)
+        if not row:
+            raise ValueError(f"khong co vi the mo: {symbol}")
+        amt, _side, _old_stop, old_id = row
+        close_side = "SELL" if float(amt) > 0 else "BUY"
+        tick = self.symbol_filters(symbol)["tick_size"]
+        trigger = fmt_step(round_price(new_stop, tick), tick)
+        new = self._mgr.place_algo(symbol, close_side, "STOP_MARKET", trigger)
+        new_id = str(new.get("client_id", ""))
+        if not new_id:
+            raise RuntimeError("dat SL moi that bai")
+        try:
+            if old_id:
+                self._mgr.cancel_algo(symbol, old_id)
+        except Exception as e:
+            # 2 SL cung song la trang thai nguy hiem -> HALT, khong tu xu ly mu.
+            self._halt(f"trail_cancel_fail:{old_id}")
+            raise RuntimeError(f"huy SL cu that bai: {e}") from e
+        self._con.execute(
+            "UPDATE positions SET sl=?, sl_id=?, updated_ms=? WHERE symbol=?",
+            (trigger, new_id, self._now(), symbol),
+        )
+        log("info", "exec.trail", symbol=symbol, stop=trigger, sl_id=new_id)
+        return {"ok": True, "sl_id": new_id, "old_id": old_id, "stop": trigger}
+
+    def close(self, symbol: str, reason: str = "manual") -> dict:
+        row = self._row(symbol)
+        if not row:
+            return {"ok": True, "reason": "already_flat"}
+        amt, _side, _sl, sl_id = row
+        qty = fmt_step(abs(float(amt)), self.symbol_filters(symbol)["step_size"])
+        close_side = "SELL" if float(amt) > 0 else "BUY"
+        res = self._mgr.place(symbol, close_side, "MARKET", qty, reduce_only=True)
+        cid = str(res.get("client_id", ""))
+        fill = self._wait_fill(symbol, cid)
+        if fill is None:
+            return {"ok": False, "reason": "close_no_fill", "client_id": cid}
+        if sl_id:  # closePosition tu het han; huy cho chac neu con song
+            try:
+                self._mgr.cancel_algo(symbol, sl_id)
+            except Exception as e:
+                log("warn", "exec.close_sl_cancel", error=str(e)[:120])
+        self._con.execute(
+            "UPDATE positions SET amt='0', state='CLOSED', updated_ms=? WHERE symbol=?",
+            (self._now(), symbol),
+        )
+        self._con.execute(
+            "INSERT INTO events(kind,payload,ts_ms) VALUES('position_closed',?,?)",
+            (f"{symbol}:{reason}", self._now()),
+        )
+        log("info", "exec.close", symbol=symbol, reason=reason)
+        return {"ok": True, "client_id": cid, "reason": reason}
 
     def _wait_fill(
         self, symbol: str, cid: str, tries: int = 10, delay: float = 0.05
@@ -225,8 +303,9 @@ class Executor:
         req: OrderRequest,
         cid: str,
         fill_price: float,
-        sl: str,
-        tp: str,
+        sl_price: str,
+        sl_id: str,
+        tp_id: str,
         dec: RiskDecision,
         qty: str,
     ) -> None:
@@ -235,11 +314,12 @@ class Executor:
         amt = qty if is_long else f"-{qty}"
         self._con.execute(
             "INSERT INTO positions(symbol,amt,entry,updated_ms,strategy_id,side,sl,tp,"
-            "risk_usd,opened_ms,state) VALUES(?,?,?,?,?,?,?,?,?,?,'OPEN') "
+            "sl_id,tp_id,risk_usd,opened_ms,state) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'OPEN') "
             "ON CONFLICT(symbol) DO UPDATE SET amt=excluded.amt,entry=excluded.entry,"
             "updated_ms=excluded.updated_ms,strategy_id=excluded.strategy_id,"
-            "side=excluded.side,sl=excluded.sl,tp=excluded.tp,"
-            "risk_usd=excluded.risk_usd,opened_ms=excluded.opened_ms,state='OPEN'",
+            "side=excluded.side,sl=excluded.sl,tp=excluded.tp,sl_id=excluded.sl_id,"
+            "tp_id=excluded.tp_id,risk_usd=excluded.risk_usd,"
+            "opened_ms=excluded.opened_ms,state='OPEN'",
             (
                 req.symbol,
                 amt,
@@ -247,8 +327,10 @@ class Executor:
                 now,
                 req.strategy_id,
                 "LONG" if is_long else "SHORT",
-                sl,
-                tp,
+                sl_price,
+                str(req.tp or ""),
+                sl_id,
+                tp_id,
                 dec.risk_usd,
                 now,
             ),

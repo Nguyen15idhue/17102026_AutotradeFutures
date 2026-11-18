@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS positions(
   entry TEXT DEFAULT '0', updated_ms INTEGER NOT NULL,
   strategy_id TEXT NOT NULL DEFAULT '', side TEXT NOT NULL DEFAULT '',
   sl TEXT NOT NULL DEFAULT '', tp TEXT NOT NULL DEFAULT '',
+  sl_id TEXT NOT NULL DEFAULT '', tp_id TEXT NOT NULL DEFAULT '',
   risk_usd REAL NOT NULL DEFAULT 0, opened_ms INTEGER NOT NULL DEFAULT 0,
   state TEXT NOT NULL DEFAULT 'OPEN');
 CREATE TABLE IF NOT EXISTS signals(
@@ -70,6 +71,8 @@ _MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("positions", "side", "TEXT NOT NULL DEFAULT ''"),
     ("positions", "sl", "TEXT NOT NULL DEFAULT ''"),
     ("positions", "tp", "TEXT NOT NULL DEFAULT ''"),
+    ("positions", "sl_id", "TEXT NOT NULL DEFAULT ''"),
+    ("positions", "tp_id", "TEXT NOT NULL DEFAULT ''"),
     ("positions", "risk_usd", "REAL NOT NULL DEFAULT 0"),
     ("positions", "opened_ms", "INTEGER NOT NULL DEFAULT 0"),
     ("positions", "state", "TEXT NOT NULL DEFAULT 'OPEN'"),
