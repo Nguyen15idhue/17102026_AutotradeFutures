@@ -2,7 +2,8 @@
 
 **Kế hoạch triển khai cho người mới (dân CNTT, chưa biết trading/bot)**
 
-- Phiên bản: 1.9 (chuyển môi trường demo sang **mock tự dựng** `binance-demo-server`; bỏ phụ thuộc Binance Demo Trading / `demo-fapi.binance.com`)
+- Phiên bản: 1.10 (P1.2: chuẩn hoá `range_24h` bằng percentile `range_pct` thay vì so trực tiếp với ATR — 0% nến thoả trên dữ liệu thật; làm rõ vol_pct/bbw/CRISIS; sửa tỉ lệ RANGE thực đo)
+- Lịch sử: 1.9 (chuyển môi trường demo sang **mock tự dựng** `binance-demo-server`; bỏ phụ thuộc Binance Demo Trading / `demo-fapi.binance.com`)
 - Lịch sử: 1.8 (kết quả xác minh live 17/11/2026: minNotional không đồng nhất — BTC 50 · ETH/LINK 20 · alt 5; ghi tại `docs/verification.md`)
 - Lịch sử: 1.7 (thêm service `binance-demo-server` giả lập USDⓈ-M Futures cho dev/test offline — xem `docs/phase0-binance-demo-server.md`)
 - Lịch sử: 1.6 (chi phí thật: VPS tận dụng sẵn = 0; AI gate dùng GLM 5.3 Flash + DeepSeek V4 Flash ≈ 2–7 USD/tháng; tách tài liệu triển khai theo phase)
@@ -258,8 +259,8 @@ MVP dùng 5 nhãn:
 
 | Nhãn | Điều kiện (15m) | Hành động |
 |---|---|---|
-| `RANGE` | ADX < 20; range 24h < 2,5×ATR; vol percentile 20–60; BBW percentile > 15 | Bật Mean Reversion |
-| `SQUEEZE` | BBW percentile ≤ 20 (90 ngày); range 24h < 1,5×ATR; volume giảm | Bật Squeeze Breakout |
+| `RANGE` | ADX < 20; `range_pct` < 50 (percentile 90 ngày của range 24h/ATR); vol percentile 20–60; BBW percentile > 15 | Bật Mean Reversion |
+| `SQUEEZE` | BBW percentile ≤ 20 (90 ngày); `range_pct` < 30; volume giảm | Bật Squeeze Breakout |
 | `TREND` | ADX > 22; EMA50 > EMA200; cấu trúc HH/HL | MVP: **không trade** (dành cho phase 3) |
 | `CRISIS` | Cascade thanh lý; spread giãn > 3×; funding cực trị; correlation chéo → 1 | **Đóng lệnh yếu, không mở mới** |
 | `UNKNOWN` | Thiếu dữ liệu / mâu thuẫn | Không làm gì |
@@ -421,30 +422,45 @@ bb_sd     = STDEV(close, 20)
 bb_up     = bb_mid + 2*bb_sd
 bb_dn     = bb_mid - 2*bb_sd
 bbw       = (bb_up - bb_dn) / bb_mid
-bbw_pct   = percentile_rank(bbw, 90 ngày)
+bbw_pct   = percentile_rank(bbw, 90 ngày)          # cần đủ 8640 mẫu
 adx       = ADX(14)
-vol_pct   = percentile_rank(realized_vol_1h, 30 ngày)
+rv_1h     = sqrt(Σ r² của 4 log-return 15m gần nhất)
+vol_pct   = percentile_rank(rv_1h, 30 ngày)        # KHÔNG phải percentile volume
 range_24h = (highest(high, 96) - lowest(low, 96))
+range_ratio = range_24h / atr
+range_pct = percentile_rank(range_ratio, 90 ngày)
 z         = (close - bb_mid) / bb_sd
 range_pos = (close - lowest(low,96)) / (highest(high,96) - lowest(low,96))
+volume_declining = SMA(volume, 5) < SMA(volume, 20)
 ```
+
+Mọi `percentile_rank` chỉ dùng mẫu **quá khứ** (không gồm nến hiện tại). `bbw_pct` chỉ
+có giá trị khi đủ **8640 mẫu** (90 ngày × 96 nến); thiếu → `None` → `UNKNOWN` và cấm MR.
+
+**Vì sao `range_pct` thay cho `range_24h < k×ATR`:** so range 96 nến với ATR 1 nến là
+sai thứ nguyên — trên BTCUSDT 2026-06→11/2026, `range_24h/ATR` có trung vị **10,66**,
+tỉ lệ thoả `< 2,5` là **0,0%** và `< 1,5` là **0,0%** (đo trên 16.100 nến 15m). Giữ
+nguyên ngưỡng sẽ khiến RANGE và SQUEEZE không bao giờ xảy ra. Chuẩn hoá bằng percentile
+giữ nguyên tinh thần "range hẹp so với biến động gần đây": đo lại RANGE ~7% nến,
+SQUEEZE ~2,1% (cùng dữ liệu). Cùng lý do áp dụng cho điều kiện "range 24 nến" ở §6.4 —
+chốt lại khi làm P1.5.
 
 Phân loại có thứ tự ưu tiên:
 
 ```
 if crisis_conditions:            -> CRISIS
-elif bbw_pct <= 20 and range_24h < 1.5*atr and volume_declining:
+elif bbw_pct <= 20 and range_pct < 30 and volume_declining:
                                  -> SQUEEZE
-elif adx < 20 and range_24h < 2.5*atr and 20 <= vol_pct <= 60 and bbw_pct > 15:
+elif adx < 20 and range_pct < 50 and 20 <= vol_pct <= 60 and bbw_pct > 15:
                                  -> RANGE
 elif adx > 22 and ema50 > ema200:
                                  -> TREND
 else:                            -> UNKNOWN
 ```
 
-`crisis_conditions` gồm bất kỳ: spread > 3× trung bình 1h, có > 5 lệnh thanh lý lớn trong 1 phút, funding |rate| > 0,1%, hoặc BTC giảm > 4% trong 15 phút.
+`crisis_conditions` gồm bất kỳ: spread > 3× trung bình 1h, có > 5 lệnh thanh lý lớn trong 1 phút, funding |rate| > 0,1%, hoặc BTC giảm > 4% trong 15 phút. Input thiếu (mock không có liquidation stream) → điều kiện đó coi như không kích hoạt, ghi lý do vào `reason`.
 
-Hysteresis: nhãn mới phải giữ 3 nến liên tiếp; sau khi đổi nhãn, cooldown 5 nến không đổi lại.
+Hysteresis: nhãn mới phải giữ 3 nến liên tiếp; sau khi đổi nhãn, cooldown 5 nến không đổi lại. **CRISIS xác nhận 1 nến** — đây là trạng thái an toàn, chờ 45 phút mới chặn mở lệnh là trái nguyên tắc "CRISIS = không mở lệnh mới".
 
 **Quy tắc an toàn quan trọng nhất toàn hệ thống:**
 
@@ -484,7 +500,7 @@ Tất cả phải đúng:
 
 ### Vì sao hợp lý
 
-- RANGE là regime phổ biến nhất (40–60% thời gian trên 15m).
+- RANGE là regime phổ biến trong lý thuyết, nhưng **thực đo trên BTCUSDT 15m (06→11/2026) chỉ ~13% thời gian** (tuần cao nhất: 12,5% tổng số nến, 51,2% trong nhóm nhãn tradable). Lý do cấu trúc: điều kiện `vol_pct` 20–60 chỉ nhận ~40% nến, `adx < 20` ~36%, cộng `bbw_pct > 15` và `range_pct < 50`. Đây là con số đo, không phải mục tiêu; muốn tăng độ phủ phải walk-forward trước khi đổi ngưỡng.
 - TP gần, SL chặt → nhiều lệnh, dễ đo.
 - Khớp trực tiếp triết lý "chỉ trade khi yên tĩnh".
 - Chỉ báo gốc: z-score (thống kê), RSI(2) (Connors), Bollinger (2001). Ngưỡng 2σ và RSI(2)<10 là quy ước phổ biến, **không phải bảo chứng lợi nhuận**.
@@ -492,7 +508,7 @@ Tất cả phải đúng:
 ### Điểm chết
 
 - Range bị phá → lỗ liên tiếp. Bảo vệ: BBW > 15 và SL ngoài biên.
-- Range quá hẹp → TP < phí. Bảo vệ: yêu cầu range_24h ≥ 1,5×ATR.
+- Range quá hẹp → TP < phí. Bảo vệ: yêu cầu `range_pct ≥ 50` (P1.4 chốt; điều kiện cũ `range_24h ≥ 1,5×ATR` luôn đúng khi so range 96 nến với ATR 15m).
 - Maker không khớp → bỏ lỡ. Chấp nhận, không đuổi.
 - Funding xấu khi giữ lâu → time stop 12 nến.
 
@@ -523,7 +539,7 @@ Tất cả phải đúng:
 
 - Regime = `SQUEEZE`.
 - `bbw_pct <= 20` trong 90 ngày.
-- Range 24 nến < 1,5×ATR.
+- Range 24 nến < 1,5×ATR (chuẩn hoá percentile như §6.2 — chốt ở P1.5).
 - Volume 24 nến giảm dần (volume z < 0).
 - Nến 15m đóng **ngoài hộp ≥ 0,2×ATR**.
 - Volume nến phá > 1,5× trung bình 20 nến.
@@ -676,7 +692,7 @@ khi giá lên 66.470 (+1.200 = 1%): SL dời lên 66.470 - 2*120 = 66.230
 | Bảng | Cột chính |
 |---|---|
 | `bars` | symbol, tf, open_time, o,h,l,c,v, closed |
-| `features` | symbol, tf, ts, atr, adx, bbw, bbw_pct, z, vol_pct, range_24h |
+| `features` | symbol, tf, ts, atr, adx, bbw, bbw_pct, z, vol_pct, range_24h, range_pct |
 | `regime` | symbol, ts, label, confidence |
 | `signals` | id, strategy, symbol, side, ts, reason_json |
 | `orders` | client_id, exchange_id, algo_id, strategy_id, type, side, qty, price, status |

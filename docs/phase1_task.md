@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.3 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.6
+Phiên bản: 1.4 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.10
 
 ---
 
@@ -255,7 +255,7 @@ Toàn bộ tính trên **nến đã đóng**, không bao giờ dùng nến đang
 
 1. Tải historical từ `data.binance.vision` (bulk) + backfill phần thiếu bằng REST; lưu Parquet theo symbol/ngày.
 2. Aggregate 1m → 15m/1h, chỉ nến đã đóng; phát hiện gap.
-3. Feature engine: ATR(14), BB(20,2σ), BBW + percentile 90 ngày, ADX(14), z-score, vol percentile, range_24h, OI, funding. Unit test bằng dữ liệu tổng hợp (biết trước kết quả).
+3. Feature engine: ATR(14), BB(20,2σ), BBW + percentile 90 ngày, ADX(14), z-score, vol percentile (realized vol 1h), range_24h + `range_pct`, OI, funding. Unit test bằng dữ liệu tổng hợp (biết trước kết quả).
 4. Regime: 5 nhãn, thứ tự ưu tiên CRISIS → SQUEEZE → RANGE → TREND → UNKNOWN; hysteresis 3 nến + cooldown 5 nến.
 5. Replay mode: chạy lại 1 khoảng thời gian ra cùng kết quả 2 lần.
 6. Spot-check 3 giai đoạn: 1 tuần range, 1 giai đoạn squeeze, 1 ngày crash.
@@ -272,27 +272,35 @@ Toàn bộ tính trên **nến đã đóng**, không bao giờ dùng nến đang
 
 ### Checklist test
 
-- [ ] Unit test ATR/ADX/BB/z bằng dữ liệu tổng hợp pass
-- [ ] Replay 2 lần → cùng kết quả
-- [ ] Ngày crash lịch sử → nhãn CRISIS
-- [ ] Tuần sideway → phần lớn RANGE
-- [ ] Percentile BBW không bị lỗi khi chưa đủ 90 ngày dữ liệu (fallback)
-- [ ] Gap dữ liệu → log warning, không tính feature trên nến thiếu
+- [x] Unit test ATR/ADX/BB/z bằng dữ liệu tổng hợp pass — `engine/tests/test_features.py` (21 test: ATR/ADX Wilder, BB/z tính tay, pct_rank brute-force 10 điểm, không look-ahead bitwise)
+- [x] Replay 2 lần → cùng kết quả — `scripts/ps/p1.2-check.ps1 -Mode Replay`, hash `1986c4f9…9704d3` cho BTCUSDT 2026-08-01..11-01 (2 lần trùng)
+- [x] Ngày crash lịch sử → nhãn CRISIS — 2026-02-06, nến giảm −4,245%, 6 nến `CRISIS` (`docs/reports/p1.2-spotcheck.json`)
+- [x] Tuần sideway → RANGE trội trong nhãn tradable — tuần 2026-06-25: RANGE 51,2% / TREND 45,1% / SQUEEZE 3,7% (loại UNKNOWN); RANGE ở tuần TREND mạnh nhất = 0% → cổng A/B đạt
+- [x] Percentile BBW không bị lỗi khi chưa đủ 90 ngày dữ liệu (fallback) — test 8639 mẫu → `None`; 8640 mẫu → có giá trị; cửa sổ 60 ngày: 100% `bbw_pct=None`, 0 CRISIS, không crash
+- [x] Gap dữ liệu → log warning, không tính feature trên nến thiếu — bỏ partition 2026-09-15: `data.gap` from=1789430399999 to=1789516800000, 384/384 nến `UNKNOWN`
 
 ### Kết quả đã đạt
 
 | Hạng mục | Trạng thái | Bằng chứng | Ngày |
 |---|---|---|---|
-| Data pipeline Parquet | ⬜ Chưa | | |
-| Aggregate 1m→15m/1h | ⬜ Chưa | | |
-| Feature engine + unit test | ⬜ Chưa | | |
-| Regime + hysteresis | ⬜ Chưa | | |
-| Replay tất định | ⬜ Chưa | | |
+| Data pipeline Parquet | ✅ | 3 symbol × 168 ngày (BTC/ETH/SOL) = 504 file, 725.760 nến 1m, 28,3 MB; BTC thêm 516 ngày lịch sử (2025-01→2026-05); `.CHECKSUM` verify, ghi atomic | 18/11/2026 |
+| Aggregate 1m→15m/1h | ✅ | `engine/app/data/bars.py` + 14 test (`test_bars.py`): cửa sổ thiếu bị bỏ, gap báo, nến chưa đóng bị loại | 18/11/2026 |
+| Feature engine + unit test | ✅ | `features.py` single-pass; 21 test; `vol_pct` = percentile realized vol 1h (không phải volume); `range_pct` percentile 90 ngày | 18/11/2026 |
+| Regime + hysteresis | ✅ | `engine/app/regime/`; 25 test; 3 nến + cooldown 5, CRISIS 1 nến; transitions 404 vs raw 715 (giảm 43,5%) trên 168 ngày | 18/11/2026 |
+| Replay tất định | ✅ | hash `1986c4f92d192327037097cec026334afe978f61ad165a6ecd1a4168659704d3`; `params_sha256=201a3109…40c18d7`; 2 lần chạy giống nhau | 18/11/2026 |
 
 ### Ghi chú
 
-- `bbw_pct` cần 90 ngày dữ liệu; những ngày đầu phải có fallback rõ ràng (ví dụ: không trade cho tới khi đủ mẫu).
-- Quy tắc an toàn số 1 của toàn hệ thống: **cấm MR khi `bbw_pct < 15`**. Viết test riêng cho nó.
+- `bbw_pct` cần **đủ 8640 mẫu** (90 ngày × 96 nến) mới có giá trị; thiếu → `None` → nhãn `UNKNOWN`, `allow_mr=false`. Fallback đã test với cửa sổ 60 ngày (không crash, 100% `bbw_pct=None`).
+- Quy tắc an toàn số 1 của toàn hệ thống: **cấm MR khi `bbw_pct < 15`**. Test riêng: `test_bbw_pct_15_blocks_mean_reversion` (None/14,9/15,0 → cấm; 15,1 → cho).
+- **Sửa so với spec gốc:** `range_24h < 2,5×ATR` (và `1,5×ATR` cho Squeeze) là sai thứ nguyên — range 96 nến luôn ~10× ATR 15m (trung vị 10,66 trên BTCUSDT 2026-06→11), nên RANGE/SQUEEZE = 0% trên dữ liệu thật. Đã chuẩn hoá thành `range_pct` = percentile 90 ngày của `range_24h/ATR` (chỉ dùng quá khứ): RANGE `range_pct < 50`, SQUEEZE `range_pct < 30`. Đo lại: RANGE ~7% nến, SQUEEZE ~2,1%.
+- **Cổng "tuần sideway"** đo khả năng phân biệt thay vì độ phổ biến: (A) trong tuần RANGE tốt nhất, RANGE trội trong 3 nhãn tradable (bỏ UNKNOWN khỏi mẫu số); (B) RANGE ở tuần đó ≥ 2× RANGE ở tuần TREND mạnh nhất. Số tuyệt đối chỉ ghi tham khảo: tuần 2026-06-25 có RANGE 12,5% tổng số nến (51,2% trong nhãn tradable), tuần TREND mạnh nhất có RANGE 0%.
+- **CRISIS xác nhận 1 nến** (các nhãn khác 3 nến + cooldown 5) vì đây là trạng thái an toàn; chờ 45 phút trái nguyên tắc "CRISIS = không mở lệnh mới". Có hằng số `CRISIS_CONFIRM_BARS` để đổi.
+- **vol_pct** = percentile của realized vol 1h (`sqrt(Σ 4 log-return 15m bình phương)`), 30 ngày — không phải percentile volume. Percentile luôn tính trên mẫu quá khứ, không gồm nến hiện tại.
+- **CRISIS bằng chứng thật:** ngày 2026-02-06 (BTC −4,245% trong 1 nến 15m, dữ liệu 2025-01→2026-11) → 6 nến CRISIS. Trong riêng 2026-06→11 mức giảm lớn nhất chỉ −3,0% nên phải tải thêm lịch sử.
+- **FE: không áp dụng** (dashboard v1 là P1.6). Smoke: `node dashboard/server.js` → `/healthz` 200, trang chủ 200, `server.js` không đọc DB/không giữ secret.
+- **Bỏ DuckDB** (spec tuần 2 ghi "Parquet + DuckDB query"): dùng pyarrow đọc/ghi trực tiếp, replay bằng Python thuần; thêm `pyarrow>=17` vào requirements. **Chưa build lại image engine** trên máy dev (Docker daemon tắt) — phải chạy `docker compose --profile app build engine` trước P1.3.
+- Dữ liệu không commit: `data/market/**` (Parquet), `data/p1.2.db`, report runtime; chỉ commit `docs/reports/p1.2-spotcheck.json` (3,2 KB).
 
 ---
 
@@ -635,7 +643,7 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 |---|---|---|---|---|
 | P1.0 | Xác minh môi trường | ⬜ Chưa | | |
 | P1.1 | Exchange adapter | ⬜ Chưa | | |
-| P1.2 | Data + Regime | ⬜ Chưa | | |
+| P1.2 | Data + Regime | ✅ Xong | 18/11/2026 | 74 test mới; replay hash tất định; 5/5 cổng spot-check; container chưa build lại (Docker daemon tắt) |
 | P1.3 | Risk + Executor | ⬜ Chưa | | |
 | P1.4 | MR + backtest | ⬜ Chưa | | |
 | P1.5 | Squeeze + gating | ⬜ Chưa | | |
@@ -655,3 +663,4 @@ Nguyên tắc: risk 0,25% trong 4 tuần đầu, chỉ tăng lên 0,5% nếu ổ
 | 17/11/2026 | 1.1 | P1.1: chốt soak 72h chạy trên VPS, cho phép hoãn song song với P1.2 kèm 4 điều kiện + tiêu chí traffic tối thiểu |
 | 17/11/2026 | 1.2 | P1.8: bổ sung live smoke test ≤ 0,05 USD làm bước 0 bắt buộc + checklist + dòng kết quả |
 | 17/11/2026 | 1.3 | Thêm mục P1.1.1: soak là service compose riêng + `/check72h` + dọn sau 7 ngày; ghi ngoại lệ inbound Telegram read-only trong service soak |
+| 18/11/2026 | 1.4 | P1.2 xong: `range_24h` chuẩn hoá bằng percentile (range_24h/ATR) vì so trực tiếp với ATR là sai thứ nguyên (0% nến thoả); cổng "tuần sideway" đổi sang A/B đo khả năng phân biệt; vol_pct theo realized vol 1h; CRISIS 1 nến; BBW cần đủ 8640 mẫu; bỏ DuckDB; FE không áp dụng |
