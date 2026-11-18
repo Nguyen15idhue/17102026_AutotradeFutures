@@ -2,7 +2,8 @@
 
 **Kế hoạch triển khai cho người mới (dân CNTT, chưa biết trading/bot)**
 
-- Phiên bản: 1.10 (P1.2: chuẩn hoá `range_24h` bằng percentile `range_pct` thay vì so trực tiếp với ATR — 0% nến thoả trên dữ liệu thật; làm rõ vol_pct/bbw/CRISIS; sửa tỉ lệ RANGE thực đo)
+- Phiên bản: 2.0 (**đổi phạm vi MVP**: bỏ chiến lược Squeeze (giữ nhãn), Trend Pullback **live cả long + short** thay vì shadow; live 4 vị thế / portfolio 2,0% / correlated 0,5%; mock rút còn 2 tuần — quyết định 18/11/2026)
+- Lịch sử: 1.10 (P1.2: chuẩn hoá `range_24h` bằng percentile `range_pct` thay vì so trực tiếp với ATR — 0% nến thoả trên dữ liệu thật; làm rõ vol_pct/bbw/CRISIS; sửa tỉ lệ RANGE thực đo)
 - Lịch sử: 1.9 (chuyển môi trường demo sang **mock tự dựng** `binance-demo-server`; bỏ phụ thuộc Binance Demo Trading / `demo-fapi.binance.com`)
 - Lịch sử: 1.8 (kết quả xác minh live 17/11/2026: minNotional không đồng nhất — BTC 50 · ETH/LINK 20 · alt 5; ghi tại `docs/verification.md`)
 - Lịch sử: 1.7 (thêm service `binance-demo-server` giả lập USDⓈ-M Futures cho dev/test offline — xem `docs/phase0-binance-demo-server.md`)
@@ -26,9 +27,9 @@
 3. [Kiến thức tối thiểu (từ số 0)](#3-kiến-thức-tối-thiểu-từ-số-0)
 4. [Điều kiện tiên quyết và xác minh](#4-điều-kiện-tiên-quyết-và-xác-minh)
 5. [Phạm vi MVP](#5-phạm-vi-mvp)
-6. [Hai chiến lược của MVP](#6-hai-chiến-lược-của-mvp)
+6. [Hai chiến lược của MVP](#6-hai-chiến-lược-của-mvp-v20)
 7. [Kiến trúc hệ thống](#7-kiến-trúc-hệ-thống)
-8. [Lộ trình 12 tuần](#8-lộ-trình-12-tuần)
+8. [Lộ trình ~15 tuần](#8-lộ-trình-15-tuần-v20)
 9. [Chạy mock 5.000 USD](#9-chạy-mock-5000-usd)
 10. [Chạy live 300 USD](#10-chạy-live-300-usd)
 11. [Quản trị rủi ro và vận hành](#11-quản-trị-rủi-ro-và-vận-hành)
@@ -44,11 +45,11 @@
 
 # 1. TL;DR — đọc 2 phút
 
-**Bạn sẽ xây gì:** một bot Python chạy trên VPS, giao dịch 10–15 coin thanh khoản cao trên Binance Futures, dùng 2 chiến lược đơn giản được "cổng chế độ thị trường" (regime gate) chọn lựa, với **SL cứng luôn tồn tại**, rủi ro **0,5%/lệnh**, đòn bẩy tối đa **3x**.
+**Bạn sẽ xây gì:** một bot Python chạy trên VPS, giao dịch 10–15 coin thanh khoản cao trên Binance Futures, dùng 2 chiến lược đơn giản được "cổng chế độ thị trường" (regime gate) chọn lựa — **Mean Reversion trong RANGE** và **Trend Pullback trong TREND (long + short)** — với **SL cứng luôn tồn tại**, rủi ro **0,5%/lệnh (mock) · 0,25% (live 4 tuần đầu)**, đòn bẩy tối đa **3x**.
 
 **Bạn sẽ không xây gì:** AI dự đoán giá, grid, martingale, 30 chiến lược, UI phức tạp, trading trong lúc thị trường hỗn loạn. Dashboard chỉ là **1 trang Node.js read-only + kill switch**.
 
-**Thời gian thực tế:** MVP ~12 tuần (6 code + 4 mock + 2 live nhỏ); thêm Trend Pullback +10 tuần (4 shadow + 4 mock + 2 chuẩn bị). Part-time 15 giờ/tuần.
+**Thời gian thực tế:** ~15 tuần tới lúc có kết luận (2–3 ngày chốt P1.2 + 1 tuần risk/exec + 1 tuần backtest + 3–5 ngày paper/dashboard + 2 tuần mock + 8 tuần live). Bỏ Squeeze tiết kiệm ~1 tuần; bật Trend live ngay (thay vì để phase 3) tiết kiệm thêm ~12 tuần. Part-time 15 giờ/tuần.
 
 **Đóng gói:** Docker Compose ngay từ ngày đầu — 2 service (`engine` Python, `dashboard` Node), SQLite trên named volume, secrets qua `.env` (không bake vào image).
 
@@ -112,7 +113,7 @@ Mock thay thế Demo Trading, nhưng khác live ở các điểm phải nhớ:
 
 ## 2.4 Định nghĩa thành công của MVP
 
-MVP **thành công** nếu sau 4 tuần mock + 8 tuần live nhỏ:
+MVP **thành công** nếu sau 2 tuần mock + 8 tuần live nhỏ:
 
 - Không có sự cố mất kiểm soát (không orphan order, không vị thế trần).
 - Drawdown nằm trong giới hạn đã định.
@@ -260,10 +261,12 @@ MVP dùng 5 nhãn:
 | Nhãn | Điều kiện (15m) | Hành động |
 |---|---|---|
 | `RANGE` | ADX < 20; `range_pct` < 50 (percentile 90 ngày của range 24h/ATR); vol percentile 20–60; BBW percentile > 15 | Bật Mean Reversion |
-| `SQUEEZE` | BBW percentile ≤ 20 (90 ngày); `range_pct` < 30; volume giảm | Bật Squeeze Breakout |
-| `TREND` | ADX > 22; EMA50 > EMA200; cấu trúc HH/HL | MVP: **không trade** (dành cho phase 3) |
+| `SQUEEZE` | BBW percentile ≤ 20 (90 ngày); `range_pct` < 30; volume giảm | **Không trade** — chiến lược Squeeze bỏ ở v2.0, nhãn vẫn giữ để chặn MR trong vùng nén |
+| `TREND` | ADX > 22; `ema50`/`ema200` cùng chiều; `trend_dir` giữ ≥ 3 nến và khớp EMA trên 1h; cấu trúc HH/HL (long) hoặc LH/LL (short) | Bật Trend Pullback **long nếu `trend_dir = +1`, short nếu `trend_dir = −1`** |
 | `CRISIS` | Cascade thanh lý; spread giãn > 3×; funding cực trị; correlation chéo → 1 | **Đóng lệnh yếu, không mở mới** |
 | `UNKNOWN` | Thiếu dữ liệu / mâu thuẫn | Không làm gì |
+
+> Ở v2.0, `TREND` là nhãn duy nhất bao cả hai chiều; chiều được lưu ở field `trend_dir` (`+1`/`−1`/`0`) chứ **không** thêm nhãn thứ 6. Lý do: giữ ổn định schema `regime`, dashboard và mapping chiến lược.
 
 Thêm **hysteresis**: cần 3 nến xác nhận nhãn mới + cooldown 5 nến, để tránh nhảy nhãn liên tục.
 
@@ -278,7 +281,7 @@ Thêm **hysteresis**: cần 3 nến xác nhận nhãn mới + cooldown 5 nến, 
 | **Survivorship bias** | Chỉ test coin còn sống | Bỏ qua coin đã delist |
 | **Multiple testing** | Thử 100 bộ tham số, chọn cái tốt nhất | Gần như chắc chắn may mắn |
 
-Quy tắc MVP: **đóng băng tham số trước khi chạy mock**, không sửa trong 4 tuần.
+Quy tắc MVP: **đóng băng tham số trước khi chạy mock**, không sửa trong suốt kỳ mock (2 tuần).
 
 ## 3.8 Mười hiểu lầm phổ biến (đã gặp trong quá trình thiết kế)
 
@@ -362,13 +365,15 @@ Nếu bất kỳ mục nào fail, **dừng lại xử lý**, không đi tiếp.
 |---|---|
 | Sàn | Binance USDⓈ-M Futures, one-way mode |
 | Coin | 10–15 symbol thanh khoản cao nhất, review hàng tuần |
-| Khung tín hiệu | 15m; dữ liệu 1m; context 1h |
-| Chiến lược | Mean Reversion (RANGE) + Squeeze Breakout (SQUEEZE); Trend Pullback chỉ **shadow mode** trong mock |
-| Exit | MR: TP cố định + SL cứng. Squeeze: SL cứng + trailing do bot dời |
-| Risk/lệnh | 0,5% mock; 0,25–0,5% live |
+| Khung tín hiệu | Regime + MR: 15m; Trend: 1h signal / 4h context; dữ liệu 1m |
+| Chiến lược | Mean Reversion (RANGE) + **Trend Pullback (TREND, long + short, live ngay)**. Squeeze Breakout **bỏ ở v2.0** |
+| Exit | MR: TP cố định + SL cứng. Trend: SL cứng + trailing 2×ATR + time stop 36 nến 1h, không TP |
+| Risk/lệnh | 0,5% mock; 0,25% live 4 tuần đầu, sau đó 0,5% nếu pass checkpoint |
 | Đòn bẩy | 3x isolated |
-| Số vị thế | Mock 4; live 2 |
-| Portfolio risk (tổng risk mở) | Mock **2,0%**; live 1,0% |
+| Số vị thế | Mock 4; **live 4** (quyết định 18/11/2026) |
+| Risk budget/chiến lược | `allocation` 0,5 / 0,5 của portfolio cap; tối đa 2 vị thế/chiến lược |
+| Portfolio risk (tổng risk mở) | Mock **2,0%**; live **2,0%** |
+| Max risk nhóm tương quan | Mock 2,0%; live **0,5%** (tối đa 2 vị thế cùng nhóm) |
 | Kill switch | Daily −2%, weekly −4%, DD −6% |
 | Logging | SQLite (WAL) + stdout (Docker log rotation) + Telegram alert (outbound-only vào 1 group) |
 | AI | **Chưa có** (phase 2) |
@@ -378,7 +383,8 @@ Nếu bất kỳ mục nào fail, **dừng lại xử lý**, không đi tiếp.
 
 - Grid, market making, scalping tick.
 - Martingale, averaging down, "gồng lệnh".
-- Trend Pullback **live**, funding carry, cross-sectional. (Trend Pullback **shadow** được phép từ mock — xem 15.2.)
+- **Squeeze Breakout** — huỷ 18/11/2026 (xem §6.4); nhãn `SQUEEZE` vẫn tồn tại và có nghĩa "đứng ngoài".
+- Funding carry, cross-sectional. (Xem phase 3.)
 - AI/LLM trong hot path.
 - Tối ưu tham số theo từng coin.
 - Chạy nhiều chiến lược trên cùng symbol.
@@ -396,20 +402,29 @@ Tiêu chí lọc (chạy hàng tuần):
 
 Gợi ý 10 symbol khởi điểm: `BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `BNBUSDT`, `XRPUSDT`, `DOGEUSDT`, `ADAUSDT`, `AVAXUSDT`, `LINKUSDT`, `SUIUSDT`.
 
-**Cảnh báo tương quan:** các alt này tương quan rất cao với BTC. 4 vị thế long cùng lúc thực chất là 1 cược (portfolio risk mock cap 2,0%; live 1,0%). Risk engine phải có correlation cap.
+**Cảnh báo tương quan:** các alt này tương quan rất cao với BTC. 4 vị thế cùng chiều thực chất là 1 cược. Vì vậy live dùng **correlated cap 0,5%** (tối đa 2 vị thế cùng nhóm tương quan) dù portfolio cap là 2,0% — một cú sập đồng loạt với 4 vị thế sẽ quét sạch daily limit 2%.
 
 ---
 
-# 6. Hai chiến lược của MVP
+# 6. Hai chiến lược của MVP (v2.0)
 
 ## 6.1 Vì sao chọn hai cái này
 
-Chúng là hai mặt của cùng một cấu trúc:
+Hai chiến lược phủ hai trạng thái **đối lập nhau** của thị trường, nên không bao giờ tranh cùng một cơ hội:
 
-- `RANGE`: giá đi trong hộp → **trade bên trong** (mean reversion).
-- `SQUEEZE`: hộp bị nén và sắp nổ → **trade lúc phá hộp** (breakout).
+- `RANGE`: giá đi trong hộp → **trade bên trong** (mean reversion, TP cố định).
+- `TREND`: giá đi có hướng → **trade theo hướng, vào lúc hồi** (pullback, trailing, không TP).
 
-Chúng không bao giờ chạy cùng lúc trên cùng symbol, nên không đánh nhau. Chúng phủ hai trạng thái phổ biến nhất của crypto, và mỗi cái có một cơ chế thoát phù hợp.
+Vì nhãn regime là độc quyền trên từng symbol tại từng nến, hai chiến lược không thể cùng mở trên một symbol: `RANGE` và `TREND` loại trừ nhau. Không cần global position manager phức tạp.
+
+### Vì sao bỏ Squeeze (quyết định 18/11/2026)
+
+Squeeze Breakout là chiến lược thứ ba trong bản 1.x, phủ vùng `bbw_pct ≤ 20` — đúng vùng mà **luật an toàn số 1 cấm MR**. Bỏ nó có nghĩa:
+
+- Vùng nén trở thành **vùng đứng ngoài** (nhãn `SQUEEZE` vẫn tồn tại, chỉ không có chiến lược nào chạy). Đây là hướng **an toàn hơn**, không phải rủi ro hơn: không fade, cũng không đoán hướng breakout.
+- Mất khả năng tham gia các cú phá hộp — chấp nhận, vì Squeeze chỉ ~2% số nến và win rate 35–45%.
+- **Xoá luôn xung đột chiều** giữa `SQUEEZE`-down và `TREND`-short (bản 1.x ghi nhận đây là lỗ chưa có luật chặn). Nhờ vậy bật Trend short trở nên đơn giản.
+- Trade-off thật: hệ thống chỉ còn **một kiểu edge** ở phía mean-reversion cộng thêm trend-following. Trong downtrend kéo dài, MR ít cơ hội nhưng Trend short vẫn hoạt động — đây là lý do Trend được bật live thay vì để phase 3.
 
 ## 6.2 Regime detector — nền tảng chung
 
@@ -432,6 +447,8 @@ range_pct = percentile_rank(range_ratio, 90 ngày)
 z         = (close - bb_mid) / bb_sd
 range_pos = (close - lowest(low,96)) / (highest(high,96) - lowest(low,96))
 volume_declining = SMA(volume, 5) < SMA(volume, 20)
+ema50, ema200     = EMA(close, 50), EMA(close, 200)     # trên 15m
+trend_dir_15m     = +1 nếu ema50 > ema200; −1 nếu ema50 < ema200; 0 nếu thiếu mẫu
 ```
 
 Mọi `percentile_rank` chỉ dùng mẫu **quá khứ** (không gồm nến hiện tại). `bbw_pct` chỉ
@@ -442,25 +459,32 @@ sai thứ nguyên — trên BTCUSDT 2026-06→11/2026, `range_24h/ATR` có trung
 tỉ lệ thoả `< 2,5` là **0,0%** và `< 1,5` là **0,0%** (đo trên 16.100 nến 15m). Giữ
 nguyên ngưỡng sẽ khiến RANGE và SQUEEZE không bao giờ xảy ra. Chuẩn hoá bằng percentile
 giữ nguyên tinh thần "range hẹp so với biến động gần đây": đo lại RANGE ~7% nến,
-SQUEEZE ~2,1% (cùng dữ liệu). Cùng lý do áp dụng cho điều kiện "range 24 nến" ở §6.4 —
-chốt lại khi làm P1.5.
+SQUEEZE ~2,1% (cùng dữ liệu). Cùng lý do áp dụng cho điều kiện "range 24 nến" ở §6.4
+(§6.4 đã huỷ ở v2.0 nên không cần chốt).
 
 Phân loại có thứ tự ưu tiên:
 
 ```
 if crisis_conditions:            -> CRISIS
 elif bbw_pct <= 20 and range_pct < 30 and volume_declining:
-                                 -> SQUEEZE
+                                 -> SQUEEZE   # không chiến lược nào chạy
 elif adx < 20 and range_pct < 50 and 20 <= vol_pct <= 60 and bbw_pct > 15:
                                  -> RANGE
-elif adx > 22 and ema50 > ema200:
-                                 -> TREND
+elif adx > 22 and trend_dir_15m != 0:
+                                 -> TREND, trend_dir = trend_dir_15m
 else:                            -> UNKNOWN
 ```
 
 `crisis_conditions` gồm bất kỳ: spread > 3× trung bình 1h, có > 5 lệnh thanh lý lớn trong 1 phút, funding |rate| > 0,1%, hoặc BTC giảm > 4% trong 15 phút. Input thiếu (mock không có liquidation stream) → điều kiện đó coi như không kích hoạt, ghi lý do vào `reason`.
 
 Hysteresis: nhãn mới phải giữ 3 nến liên tiếp; sau khi đổi nhãn, cooldown 5 nến không đổi lại. **CRISIS xác nhận 1 nến** — đây là trạng thái an toàn, chờ 45 phút mới chặn mở lệnh là trái nguyên tắc "CRISIS = không mở lệnh mới".
+
+**Hướng trend (`trend_dir`) — luật bắt buộc trước khi cho Trend vào lệnh:**
+
+1. `trend_dir_15m` phải giữ **3 nến** liên tiếp (cùng cấu hình `trend_dir_confirm_bars`). Đổi chiều giữa chừng → reset streak, không vào lệnh.
+2. Phải **khớp với EMA50/200 trên khung 1h** cùng dấu. Lệch nhau (15m nói down, 1h nói up) → không vào lệnh, ghi lý do `direction_conflict`.
+3. Chiều ngược lại phải đóng vị thế hiện có trước (không giữ long và short cùng symbol — đã bị luật "1 vị thế/symbol" chặn).
+
 
 **Quy tắc an toàn quan trọng nhất toàn hệ thống:**
 
@@ -527,7 +551,9 @@ notional ≈ 0,003 × 64.150 ≈ 192 USD
 phí round-trip ~0,07% × 192 ≈ 0,13 USD (≈9% của R)
 ```
 
-## 6.4 Squeeze Breakout
+## 6.4 Squeeze Breakout — **ĐÃ HUỶ ở v2.0**
+
+> **Trạng thái: không triển khai (quyết định 18/11/2026).** Nhãn `SQUEEZE` vẫn tồn tại trong regime engine và có nghĩa "đứng ngoài". Phần spec dưới đây giữ lại làm tài liệu tham khảo, không phải việc phải làm. Lý do huỷ xem §6.1. Không bật lại nếu chưa có walk-forward + lý do ghi vào lịch sử tài liệu.
 
 ### Logic
 
@@ -597,10 +623,12 @@ khi giá lên 66.470 (+1.200 = 1%): SL dời lên 66.470 - 2*120 = 66.230
 | RSI(2) | <10 / >90 (tham khảo) | Connors & Alvarez (2008) | Adapt từ daily equity sang crypto 15m |
 | Risk/lệnh | 0,5% | Van Tharp; Turtle 1–2% | MVP thận trọng hơn |
 | Stop MR | 1,2×ATR ngoài biên | ATR-based, phổ biến | Đủ rộng để không bị wick |
-| Trailing Squeeze | 2×ATR | Turtle 2N (Faith, 2007) | N của Turtle là ATR(20) |
-| Time stop | 12 nến 15m (3 giờ) | Kinh nghiệm vận hành | Tránh lệnh treo vô hạn |
+| Trailing Trend | 2×ATR, sau khi lãi ≥1,5×ATR | Turtle 2N (Faith, 2007) | N của Turtle là ATR(20) |
+| Trailing Squeeze | 2×ATR | Turtle 2N (Faith, 2007) | **Huỷ ở v2.0** — giữ làm tham khảo |
+| Time stop | MR 12 nến 15m · Trend 36 nến 1h | Kinh nghiệm vận hành | Tránh lệnh treo vô hạn |
 | Leverage | 3x | Tự đặt, thận trọng | Liquidation rất xa |
-| Max positions | 2 live / 4 mock | Tự đặt | Mock 4×0,5% = portfolio 2,0%; live 2×0,5% = 1,0%; correlation cap |
+| Max positions | 4 live / 4 mock | Tự đặt 18/11/2026 | Live: 4 × 0,25% = 1,0% risk mở; sau checkpoint 4 × 0,5% = 2,0% = portfolio cap. Margin 60% là cap chặn thật trên TK 300 USD |
+| Risk budget/chiến lược | 0,5 của portfolio cap; tối đa 2 vị thế | Tự đặt 18/11/2026 | Chặn 1 chiến lược chiếm hết slot |
 
 > Các tham số này là **điểm khởi đầu có cơ sở**, không phải "cấu hình vàng". Mọi thay đổi phải qua walk-forward và ghi lại lý do.
 
@@ -641,8 +669,8 @@ khi giá lên 66.470 (+1.200 = 1%): SL dời lên 66.470 - 2*120 = 66.230
                     │                        │
           ┌─────────▼─────────┐    ┌─────────▼─────────┐
           │ Strategy Engine   │    │  Ops / Reporting  │
-          │ MR + Squeeze      │    │ logs, metrics,    │
-          │ (+ Trend shadow)  │    │ Telegram group    │
+          │ MR + Trend L/S    │    │ logs, metrics,    │
+          │                   │    │ Telegram group    │
           └─────────┬─────────┘    └─────────┬─────────┘
                     │                        │
                     └───────────┬────────────┘
@@ -693,7 +721,7 @@ khi giá lên 66.470 (+1.200 = 1%): SL dời lên 66.470 - 2*120 = 66.230
 |---|---|
 | `bars` | symbol, tf, open_time, o,h,l,c,v, closed |
 | `features` | symbol, tf, ts, atr, adx, bbw, bbw_pct, z, vol_pct, range_24h, range_pct |
-| `regime` | symbol, ts, label, confidence |
+| `regime` | symbol, ts, label, confidence, raw_label, reason, **trend_dir** |
 | `signals` | id, strategy, symbol, side, ts, reason_json |
 | `orders` | client_id, exchange_id, algo_id, strategy_id, type, side, qty, price, status |
 | `fills` | order_id, strategy_id, ts, price, qty, fee, fee_asset |
@@ -742,7 +770,7 @@ CLOSED
 ### Entry
 
 - MR: post-only limit, TTL 2 nến.
-- Squeeze: market.
+- Trend: market tại open nến 1h kế tiếp, guard `spread < 2 bps`.
 - `newClientOrderId` dạng `{strategy}-{symbol}-{ts}-{nonce}`.
 
 ### SL cứng
@@ -801,11 +829,12 @@ WS chỉ là tín hiệu tăng tốc; **REST là nguồn sự thật**.
 ## 7.6 Config mẫu
 
 ```yaml
-# config/mvp.mock.yaml
-env: mock                      # mock | live (file config tách riêng mỗi env: mvp.mock.yaml / mvp.live.yaml)
+# config/mvp.mock.yaml  —  bản thật: config/mvp.mock.yaml và config/mvp.live.yaml
+# (khác nhau ở: env, base_url/ws_url, equity_base, risk_per_trade, max_correlated_risk, max_orders_per_day)
+env: mock                      # mock | live (file config tách riêng mỗi env)
 base_url: http://binance-demo-server:8080    # mock tự dựng; live: https://fapi.binance.com
-ws_url: ws://binance-demo-server:8080/ws
-equity_base: 5000              # mock: sổ ảo riêng, bất kể INITIAL_BALANCE của mock; live: 300
+ws_url: ws://binance-demo-server:8080/ws     # live: wss://fstream.binance.com
+equity_base: 5000              # mock: sổ ảo riêng; live: 300
 
 universe:
   symbols: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT,
@@ -814,26 +843,26 @@ universe:
   max_spread_bps: 2
 
 timeframes:
-  signal: 15m                  # MR + Squeeze
+  signal: 15m                  # regime + MR
   data: 1m
   context: 1h
-  trend_signal: 1h              # chỉ Trend Pullback (shadow trong MVP)
-  trend_context: 4h
+  trend_signal: 1h              # Trend Pullback
+  trend_context: 4h             # bối cảnh xu hướng lớn
 
 risk:
-  risk_per_trade: 0.005         # mock; live 4 tuần đầu ghi đè 0.0025, sau đó 0.005 nếu pass review
+  risk_per_trade: 0.005         # mock; live 0.0025 trong 4 tuần đầu, sau đó 0.005 nếu pass checkpoint
   max_leverage: 3
-  max_positions: 4              # mock; live ghi đè = 2
+  max_positions: 4              # mock 4; live 4 (quyết định 18/11/2026)
   daily_loss_limit: 0.02
   weekly_loss_limit: 0.04
   max_drawdown: 0.06
-  portfolio_risk_max: 0.02      # mock 2,0%; live ghi đè 0.01 — risk engine chặn mở mới khi vượt, không trừ risk/lệnh
-  max_correlated_risk: 0.02     # mock 2,0%; live ghi đè 0.01. Nhóm tương quan = return 1h 30 ngày corr > 0.8 với BTC
+  portfolio_risk_max: 0.02      # mock 2,0%; live 2,0% — risk engine chặn mở mới khi vượt, không trừ risk/lệnh
+  max_correlated_risk: 0.02     # mock 2,0%; live 0,5% -> tối đa 2 vị thế cùng nhóm. Nhóm = return 1h 30 ngày corr > 0.8 với BTC
   blackout_minutes: 45
   stale_data_seconds: 3
   funding_close_bps: 10         # không giữ lệnh qua snapshot nếu |funding| > 0,1%, trừ khi trailing lãi > 1×ATR
   margin_usage_max: 0.60        # chặn mở mới khi Σ initial_margin + margin lệnh mới > 60% equity (TK nhỏ: margin cạn trước risk cap)
-  narrow_stop_warn_pct: 0.005   # cảnh báo mềm khi stop% < 0,5% (notional > 2× vốn/lệnh): margin phình nhanh, slippage/R xấu đi
+  narrow_stop_warn_pct: 0.005   # cảnh báo mềm khi stop% < 0,5%
 
 regime:
   atr_period: 14
@@ -841,14 +870,27 @@ regime:
   bb_period: 20
   bb_std: 2
   bbw_lookback_days: 90
+  range_lookback_days: 90       # percentile của range_24h/ATR (xem §6.2)
+  range_pct_max: 50
+  squeeze_range_pct_max: 30
+  vol_lookback_days: 30
+  vol_pct_min: 20
+  vol_pct_max: 60
+  bbw_pct_min: 15               # LUẬT CỨNG: cấm MR khi bbw_pct < 15
+  squeeze_bbw_pct_max: 20
+  adx_range_max: 20
+  adx_trend_min: 22
   hysteresis_bars: 3
   cooldown_bars: 5
+  crisis_confirm_bars: 1
+  trend_dir_confirm_bars: 3
 
 strategies:
-  allocation:                   # tổng risk budget = 1.0; chỉ áp cho mode live (shadow không tiêu budget)
+  allocation:                   # tỉ lệ của portfolio_risk_max; tổng = 1.0
     mean_reversion: 0.5
-    squeeze_breakout: 0.3
-    trend_pullback: 0.2         # chỉ có hiệu lực khi trend_pullback.mode: live; ở shadow thì budget = 0
+    trend_pullback: 0.5
+    squeeze_breakout: 0.0       # HUỶ ở v2.0 (nhãn SQUEEZE vẫn tồn tại)
+  max_positions_per_strategy: 2 # chặn 1 chiến lược chiếm hết slot
   mean_reversion:
     enabled: true
     z_entry: 2.0
@@ -858,7 +900,7 @@ strategies:
     entry: post_only
     ttl_bars: 2
   squeeze_breakout:
-    enabled: true
+    enabled: false              # HUỶ 18/11/2026 — giữ code chưa viết; nhãn SQUEEZE vẫn tồn tại
     bbw_pct_max: 20
     box_bars: 24
     buffer_atr: 0.2
@@ -870,9 +912,10 @@ strategies:
     entry: market
   trend_pullback:
     enabled: true
-    mode: shadow                # shadow | live
-    allow_short: false          # chỉ bật sau khi long pass + shadow short dương
+    mode: live                  # live | shadow
+    allow_short: true           # DUYỆT 18/11/2026 — rủi ro gap buy-stop đã được chấp nhận
     timeframe: 1h
+    context_timeframe: 4h
     ema_fast: 50
     ema_slow: 200
     adx_min: 22
@@ -880,11 +923,14 @@ strategies:
     fib_max: 0.618
     rsi_min: 40
     rsi_max: 55
+    short_rsi_min: 45
+    short_rsi_max: 60
     stop_atr: 1.5
     trail_atr: 2.0
     trail_after_atr: 1.5
     time_stop_bars: 36
-    entry: market
+    entry: market               # market tại open nến 1h kế tiếp
+    require_spread_bps_below: 2 # dùng lại guard spread của MR
 
 execution:
   entry_ttl_bars: 2
@@ -1303,9 +1349,9 @@ Cổng nghiệm thu: tin test tới đúng group; kill switch từ CLI/dashboard
 
 ---
 
-# 8. Lộ trình 12 tuần
+# 8. Lộ trình ~15 tuần (v2.0)
 
-*MVP 12 tuần; mở rộng Trend Pullback thêm ~10 tuần (tổng 22).*
+*Bỏ Squeeze tiết kiệm ~1 tuần; Trend bật live ngay thay vì để phase 3 tiết kiệm ~12 tuần. Tổng ~15 tuần tới lúc có kết luận (bản 1.x: 22 + 12 = 34 tuần).*
 
 ## Tổng quan
 
@@ -1313,13 +1359,12 @@ Cổng nghiệm thu: tin test tới đúng group; kill switch từ CLI/dashboard
 |---|---|---|---|
 | P0 | 0 | Chuẩn bị tài khoản, môi trường, xác minh | 13 mục bảng 4.3 pass |
 | P1 | 1–2 | Exchange adapter + data + regime | 72h không orphan, regime label đúng |
-| P2 | 3 | Risk engine + executor | Không bypass được limit |
-| P3 | 4 | MR + backtest | ≥150 lệnh, expectancy > 0 sau phí |
-| P4 | 5 | Squeeze + gating | 2 chiến lược không đánh nhau |
-| P5 | 6 | Paper infra + metrics + **dashboard Node.js v1** | Báo cáo + dashboard chạy |
-| Mock | 7–10 | Mock 5.000 USD + **Trend shadow** | Go/no-go MVP |
-| Mock+ | 11–14 | Bật Trend thật trên mock (budget 20%) | 12 tuần forward |
-| Live | 15–22 | Live 300 USD (MVP trước, Trend sau) | Review hàng tuần |
+| P2 | 3 | Risk engine + executor (4 slot, short SL) | Không bypass được limit |
+| P3 | 4 | MR backtest + **Trend long/short backtest** | ≥150 lệnh MR; ≥20 lệnh/nhánh trend |
+| P4 | 5 | Paper infra + metrics + dashboard Node.js v1 + Trend live wiring | Báo cáo + dashboard chạy; kill switch < 2s |
+| Mock | 6–7 | **Mock 5.000 USD, 2 tuần**, MR + Trend live | Go/no-go §9.5 |
+| Smoke | 8 | Live smoke ≤ 0,05 USD | Sàn chấp nhận payload thật |
+| Live | 9–16 | Live 300 USD, 4 vị thế, 0,25% → 0,5% sau checkpoint tuần 4 | 8 tuần ổn định |
 
 ## Tuần 0 — Chuẩn bị
 
@@ -1347,13 +1392,15 @@ Cổng nghiệm thu: tin test tới đúng group; kill switch từ CLI/dashboard
 ## Tuần 2 — Data & Regime
 
 - Tải historical từ `data.binance.vision` (bulk) + backfill phần thiếu bằng REST.
-- Parquet theo symbol/ngày; DuckDB query.
-- Aggregate 1m → 15m/1h (chỉ nến đã đóng).
+- Parquet theo symbol/ngày; đọc/ghi trực tiếp bằng `pyarrow` (DuckDB đã bỏ — xem `docs/phase1_task.md` P1.2).
+- Aggregate 1m → 15m/1h/4h (chỉ nến đã đóng).
 - Feature engine + unit test với dữ liệu tổng hợp.
-- Regime + hysteresis + replay.
-- Spot-check 3 giai đoạn: một tuần range, một squeeze, một ngày crash.
+- Regime: 5 nhãn + hysteresis + `trend_dir` (hướng 15m, bền 3 nến) + replay tất định.
+- Spot-check 3 giai đoạn: một tuần range, một giai đoạn squeeze, một ngày crash.
 
-**Cổng:** nhãn regime ổn định, không nhảy mỗi nến; replay ra cùng kết quả 2 lần.
+**Cổng:** nhãn regime ổn định, không nhảy mỗi nến; downtrend ra `TREND` với `trend_dir = −1`; replay ra cùng kết quả 2 lần.
+
+> Phần `trend_dir` + khung 4h được tách thành **P1.2b** trong `docs/phase1_task.md` để có cổng nghiệm thu riêng (P1.2 đã pass trước quyết định bật Trend short).
 
 ## Tuần 3 — Risk & Execution
 
@@ -1375,52 +1422,41 @@ Cổng nghiệm thu: tin test tới đúng group; kill switch từ CLI/dashboard
 
 **Cổng:** ≥150 lệnh; expectancy > 0 sau phí; DD < 8%; dương trên ≥60% coin.
 
-## Tuần 5 — Squeeze + gating
-
-- Implement Squeeze + trailing policy.
-- Mutual exclusion theo regime.
-- Correlation cap.
-- Backtest riêng và gộp.
-- Kiểm tra không có lệnh trùng/đối nghịch trên cùng symbol.
-
-**Cổng:** mỗi chiến lược dương trong regime của nó; equity gộp không có đoạn "đánh nhau".
-
-## Tuần 6 — Paper infra + Dashboard v1
+## Tuần 5 — Paper infra + Dashboard v1 + Trend live wiring
 
 - Chạy full pipeline trên dữ liệu live, không gửi lệnh thật (hoặc mock).
 - Metrics collector + daily report.
-- **Dashboard Node.js v1**: 1 trang, 8 widget, read-only, kill switch qua bảng `commands`.
+- **Dashboard Node.js v1**: 1 trang, 8 widget, read-only, kill switch qua bảng `commands`; hiện `TREND ↑/↓`.
 - Build dashboard image; compose chạy 2 service; healthcheck + log rotation hoạt động.
-- Skeleton `trend_pullback.py` + `mode: shadow` (signal + fill giả lập, không gửi lệnh).
+- **Trend live wiring**: `trend_dir` + khung 4h + strategy long/short; verify `direction_conflict` chặn đúng.
 - Watchdog: stale data, orphan, mismatch, WS disconnect, API error rate.
 - Replay mode để debug.
 
-**Cổng:** report + dashboard chạy; kill switch < 2s; trend shadow ghi đủ signal + lý do bỏ lỡ.
+**Cổng:** report + dashboard chạy; kill switch < 2s; 0 ca vào lệnh khi `direction_conflict`.
 
-## Tuần 7–10 — Mock 5.000 USD + Trend shadow
+## Tuần 6–7 — Mock 5.000 USD, 2 tuần
 
-- MVP MR + Squeeze chạy mock theo mục 9.
-- Trend Pullback chạy **shadow**: không đặt lệnh, ghi signal/fill giả/PnL ảo.
-- Đo: số tín hiệu, tỷ lệ có pullback hợp lệ, R ảo, lý do bỏ lỡ.
+- MR + Trend (long và short) chạy mock, **đóng băng tham số** suốt 2 tuần.
+- 4 slot: tối đa 2 vị thế/chiến lược; kiểm tra correlated cap hoạt động.
+- Đo: số fill theo chiến lược và theo `side`, R distribution, fees/gross, slippage.
 
-**Cổng:** MVP pass go/no-go; shadow có ≥ 20 tín hiệu, không lỗi logic.
+**Cổng:** xem §9.5. Thiếu 1 mục → chạy lại từ đầu, **không cộng dồn**.
 
-## Tuần 11–14 — Bật Trend thật trên mock
+## Tuần 8 — Live smoke ≤ 0,05 USD
 
-- Chỉ khi MVP ổn định và shadow sạch.
-- Sổ ảo riêng cho Trend, risk budget 20%.
-- Global position manager chặn 2 chiến lược cùng symbol.
-- 4 tuần mock có lệnh thật + 4 tuần shadow = **12 tuần forward**.
+- 1 lệnh size tối thiểu + SL qua `/fapi/v1/algoOrder` + cancel + close trên Binance thật.
+- Mục đích: chứng minh sàn chấp nhận payload (encoding/param/fill thật) — mock không chứng minh được.
 
-**Cổng:** không xung đột lệnh; PnL tách được theo `strategy_id`.
+**Cổng:** payload được chấp nhận, SL đặt đúng, reconcile diff = 0.
 
-## Tuần 15–22 — Live 300 USD
+## Tuần 9–16 — Live 300 USD, 8 tuần
 
-- Live MVP (MR + Squeeze) trước, risk 0,25%.
-- Trend live chỉ sau 12 tuần forward + backtest, risk 0,2% và budget riêng.
+- 300 USD, 4 vị thế, portfolio 2,0%, correlated 0,5%, risk 0,25%/lệnh.
+- **Checkpoint tuần 4 (tuần 12 của lộ trình):** 0 HALT, DD < 6%, reconcile = 0 → mới nâng risk lên 0,5%.
+- Trend long + short chạy ngay từ đầu; đo slippage riêng theo `side`.
 - Xem mục 10.
 
-**Cổng:** 8 tuần live ổn định mới tăng size.
+**Cổng:** 8 tuần live ổn định mới tăng size. Trend 2 nhánh sẽ **chưa đủ 50 lệnh/nhánh** — kết luận hợp lệ là "ổn định vận hành, chưa đủ mẫu để nói có edge".
 
 ---
 
@@ -1475,17 +1511,17 @@ Nhờ vậy, kết quả mock chuyển sang live 300 USD **cùng thang đo %**.
 
 > **Hệ quả cho cổng go/no-go:** vì fill của mock lạc quan hơn live, "expectancy vs backtest lệch ≤ ±30%" ở §9.5 chỉ chứng minh **logic khớp spec**, không chứng minh edge. Trước khi lên live phải có **live smoke test ≤ 0,05 USD** để xác nhận payload được Binance chấp nhận.
 
-## 9.4 Quy tắc 4 tuần mock
+## 9.4 Quy tắc 2 tuần mock
 
-- Risk 0,5%/lệnh; leverage 3x; max 4 vị thế; tổng risk mở ≤ 2,0%.
-- **Không sửa tham số** trong 4 tuần.
-- Trend Pullback chạy **shadow**, không gửi lệnh; không tính vào PnL của MVP.
+- Risk 0,5%/lệnh; leverage 3x; max 4 vị thế; tổng risk mở ≤ 2,0%; tối đa 2 vị thế/chiến lược.
+- **Không sửa tham số** trong 2 tuần.
+- MR + Trend (long và short) đều gửi lệnh thật vào mock — không có chế độ shadow trong mock.
 - Dashboard là nơi theo dõi chính; chỉ thao tác kill switch, không đặt lệnh.
 - Mỗi ngày 00:05 UTC: bot tự gửi daily report vào Telegram group (PnL ngày/tuần, DD, số lệnh, incidents); bạn đọc 5 phút.
 - Mỗi tuần: review metrics + incidents.
-- Nếu bot lỗi → dừng, sửa, **reset đồng hồ 4 tuần** (không cộng dồn).
+- Nếu bot lỗi → dừng, sửa, **reset đồng hồ 2 tuần** (không cộng dồn).
 
-## 9.5 Go/no-go sau mock
+## 9.5 Go/no-go sau mock (2 tuần)
 
 | Chỉ số | Ngưỡng |
 |---|---|
@@ -1493,13 +1529,16 @@ Nhờ vậy, kết quả mock chuyển sang live 300 USD **cùng thang đo %**.
 | Max DD | ≤ 1,5× backtest |
 | Reconcile diff | 0 mọi ngày |
 | Orphan order | 0 |
-| Số lệnh | ≥ 40 |
+| Số lệnh MR | ≥ 50 |
+| Số lệnh Trend | ≥ 6 (tổng cả long và short) |
 | Sự cố nghiêm trọng | 0 (mất kiểm soát vị thế) |
 | Slippage mô phỏng | ≤ 2 bps |
-| Trend shadow | ≥ 20 tín hiệu, 0 lỗi logic, fill rate ≥ 40% |
-| Chạm daily loss −2% (portfolio 2,0%) | ≤ 1 ngày trong 4 tuần; nếu >1 → hạ portfolio về 1,5% |
+| Vị thế vượt slot/chiến lược | 0 |
+| Chạm daily loss −2% (portfolio 2,0%) | ≤ 1 ngày trong 2 tuần; nếu > 1 → hạ portfolio về 1,5% |
 
 Fail bất kỳ mục nào → sửa, chạy lại mock. **Không lên live sớm.**
+
+> Vì sao 2 tuần chứ không 4: mock kiểm tra **vận hành**, không chứng minh edge. 2 tuần × cap 10 lệnh/ngày đủ tạo hàng trăm vòng lệnh để bắt lỗi reconcile/SL/restart. Nhưng nếu số lệnh Trend < 6, phải kéo dài — không được hạ cổng để cho kịp lịch.
 
 ---
 
@@ -1516,25 +1555,27 @@ Fail bất kỳ mục nào → sửa, chạy lại mock. **Không lên live sớ
 
 ## 10.2 Sizing thực tế với 300 USD
 
-Công thức:
+Công thức (live 4 tuần đầu: risk 0,25%):
 
 ```
-risk$        = 0,5% × 300 = 1,50 USD
+risk$         = 0,25% × 300 = 0,75 USD      (mock 0,5% = 1,50 USD trên sổ 5.000)
 stop_distance = stop% × price
-size (base)  = risk$ / stop_distance
-notional     = size × price = risk$ / stop%
+size (base)   = risk$ / stop_distance
+notional      = size × price = risk$ / stop%
+margin        = notional / 3 (leverage 3x)
 ```
 
-| Stop (% giá) | Notional | % vốn | Leverage thực |
-|---|---|---|---|
-| 0,4% | 375 | 125% | 1,25x |
-| 0,6% | 250 | 83% | 0,83x |
-| 0,8% | 188 | 63% | 0,63x |
-| 1,2% | 125 | 42% | 0,42x |
+| Stop (% giá) | Notional @0,25% | Margin | % vốn | Số vị thế vừa cap margin 60% (180 USD) |
+|---|---|---|---|---|
+| 0,4% | 188 | 63 | 21% | **2** |
+| 0,8% | 94 | 31 | 10% | 4 (chạm max_positions) |
+| 1,2% | 63 | 21 | 7% | 4 |
 
-→ Với stop 0,4–1,2%, leverage thực chỉ 0,4–1,25x. **Đòn bẩy 3x không bao giờ bị chạm** trừ khi stop cực hẹp. Đây là điều tốt.
+→ Với 300 USD, **margin 60% là cap chặn thật**, không phải risk. MR stop chặt (~0,4%) chỉ mở được 2 vị thế dù `max_positions = 4`; Trend stop rộng (≥0,8%) dùng được đủ 4. Đây là hành vi mong muốn (spec đã ghi "TK nhỏ: margin cạn trước risk cap"), **không** được nới margin cap để có thêm lệnh.
 
-Lưu ý min notional và stepSize (per-symbol: BTC 50 · ETH/LINK 20 · alt khác 5 USDT): size sau khi round có thể nhỏ hơn kỳ vọng → risk thực tế thấp hơn 0,5%. Chấp nhận; **không tăng risk để bù**.
+Khi nâng risk lên 0,5% ở checkpoint, notional gấp đôi → MR chỉ còn 1 vị thế đồng thời. Nghĩa là **tăng risk không làm nhiều lệnh hơn, chỉ làm lệnh to hơn và ít vị thế song song hơn**. Quyết định nâng risk phải dựa trên khoảng stop thực đo từ backtest P1.4, không dựa trên cảm giác.
+
+Lưu ý min notional và stepSize (per-symbol: BTC 50 · ETH/LINK 20 · alt khác 5 USDT): size sau khi round có thể nhỏ hơn kỳ vọng → risk thực tế thấp hơn. Chấp nhận; **không tăng risk để bù**. Nếu notional sau round < minNotional → **huỷ lệnh**, không làm tròn lên.
 
 ## 10.3 Bài toán phí — con số quan trọng nhất
 
@@ -1558,9 +1599,10 @@ Taker→taker (0,10%) thì cao hơn ~43%.
 
 ## 10.4 Quy tắc live
 
-- Risk 0,25% trong 4 tuần đầu, sau đó 0,5% nếu ổn.
-- Max 2 vị thế.
-- Không trade khi `CRISIS`, khi data stale, khi blackout.
+- Risk 0,25% trong 4 tuần đầu, sau đó 0,5% nếu checkpoint pass (0 HALT, DD < 6%, reconcile = 0).
+- Max **4** vị thế; tối đa **2 vị thế/chiến lược**; correlated cap **0,5%** (tối đa 2 vị thế cùng nhóm tương quan).
+- Không trade khi `CRISIS`, khi data stale, khi blackout, khi `direction_conflict`.
+- Short dùng SL buy-stop `closePosition=true`, `workingType=MARK_PRICE`, `priceProtect=true`; đo slippage riêng theo `side`.
 - Không can thiệp thủ công trừ kill switch.
 - Mỗi lệnh phải có SL **trước** khi bot làm việc khác.
 - Review hàng tuần; **không đổi tham số giữa tuần**.
@@ -1581,11 +1623,12 @@ Taker→taker (0,10%) thì cao hơn ~43%.
 
 | Giới hạn | Mock | Live |
 |---|---|---|
-| Risk/lệnh | 0,5% | 0,25–0,5% |
+| Risk/lệnh | 0,5% | 0,25% (4 tuần đầu) → 0,5% |
 | Leverage | 3x | 3x |
-| Max vị thế | 4 | 2 |
-| Portfolio risk (tổng risk mở) | 2,0% | 1,0% |
-| Max risk nhóm tương quan | 2,0% | 1,0% |
+| Max vị thế | 4 | **4** |
+| Vị thế/chiến lược | 2 | 2 |
+| Portfolio risk (tổng risk mở) | 2,0% | **2,0%** |
+| Max risk nhóm tương quan | 2,0% | **0,5%** |
 | Margin sử dụng tối đa | 60% equity | 60% equity |
 | Daily loss | 2% | 2% |
 | Weekly loss | 4% | 4% |
@@ -1594,14 +1637,15 @@ Taker→taker (0,10%) thì cao hơn ~43%.
 | Blackout tin | ±45 phút | ±45 phút |
 | Stale data | 3s | 3s |
 
-**Ghi chú về Portfolio risk 2,0% (mock):**
+**Ghi chú về Portfolio risk 2,0% (mock và live):**
 
-- 4 vị thế × 0,5% = **2,0%** tổng risk mở; risk/lệnh **không đổi** (0,5%).
-- Hệ quả phải chấp nhận: nếu cả 4 vị thế dừng lỗ cùng lúc (alt tương quan BTC cao, xem 5.3), mức lỗ −2,0% **chạm đúng** `daily loss −2%` → bot dừng 24h. Đây là hành vi mong muốn: daily limit đóng vai trò chốt chặn cuối, không phải trần lãi.
+- Mock: 4 vị thế × 0,5% = **2,0%** tổng risk mở; risk/lệnh **không đổi** (0,5%).
+- Live giai đoạn 1: 4 vị thế × 0,25% = **1,0%** — portfolio cap 2,0% chưa chạm; đây là chủ ý, cap 2,0% được đặt để dùng đúng lúc nâng risk lên 0,5% (4 × 0,5% = 2,0%, vừa khít).
+- Hệ quả phải chấp nhận: nếu cả 4 vị thế dừng lỗ cùng lúc (alt tương quan BTC cao, xem 5.3), mức lỗ ở mock −2,0% **chạm đúng** `daily loss −2%` → bot dừng 24h. Đây là hành vi mong muốn: daily limit đóng vai trò chốt chặn cuối, không phải trần lãi.
 - Vì vậy **không nới** `daily/weekly/DD`: nếu nới cả ba thì mất luôn lưới an toàn.
-- Live giữ 1,0% (2 vị thế) cho tới khi mock 4 tuần pass go/no-go 9.5 mà không có ngày nào chạm daily limit.
-- Correlation cap: 4 lệnh cùng hướng trên nhóm `beta>0.8` vẫn bị chặn ở 2,0%; muốn mở lệnh thứ 5 phải chờ đóng bớt.
-- **Margin là ràng buộc thật trên TK nhỏ:** stop 0,69% với 3x isolated cần margin ~21% vốn/lệnh; 4 vị thế ≈ 85% vốn dù portfolio risk mới 1,8%. Vì vậy risk engine chặn mở mới khi margin vượt 60% equity, và log cảnh báo mềm khi stop% < 0,5% (notional > 2× vốn/lệnh).
+- **Correlation cap live hạ xuống 0,5%** (18/11/2026): 4 vị thế cùng nhóm tương quan là 1 cược duy nhất; với gap 2× stop trên cả 4, mức lỗ 2,0% quét sạch daily limit. Cap 0,5% giới hạn còn **2 vị thế cùng nhóm**. Đây là siết, không cần walk-forward.
+- **Margin là ràng buộc thật trên TK 300 USD:** với stop 0,4%, mỗi lệnh cần margin ~21% vốn; 3 lệnh đã chạm 60%. Vì vậy risk engine chặn mở mới khi margin vượt 60% equity, và log cảnh báo mềm khi stop% < 0,5%.
+- **Risk budget/chiến lược** = `allocation × portfolio_risk_max` = 0,5 × 2,0% = 1,0% mỗi chiến lược, cộng với `max_positions_per_strategy = 2`. Một chiến lược không được chiếm hết 4 slot.
 
 ## 11.2 Kill switch 3 cấp
 
@@ -1682,7 +1726,7 @@ Taker→taker (0,10%) thì cao hơn ~43%.
 | Vốn live | 300 USD |
 | Phí giao dịch live | ~2–5 USD/tháng (tùy tần suất) |
 
-Thời gian: ~120–180 giờ trong 12 tuần cho MVP; +40–60 giờ cho Trend shadow/mock.
+Thời gian: ~120–180 giờ trong ~15 tuần cho MVP (bỏ Squeeze tiết kiệm ~1 tuần, Trend live ngay thay vì phase 3 tiết kiệm ~12 tuần).
 
 ---
 
@@ -1704,8 +1748,9 @@ Thời gian: ~120–180 giờ trong 12 tuần cho MVP; +40–60 giờ cho Trend 
 | Slippage | `fill − expected` | So với model |
 | MAE/MFE | max adverse/favorable excursion | Đánh giá SL/TP |
 | Per-strategy PnL | lọc `strategy_id` | Biết chiến lược nào gánh |
-| Shadow fill rate | `fillable_signals / total_signals` | Trend có khớp được không |
+| Shadow fill rate | `fillable_signals / total_signals` | Chỉ dùng khi chạy `mode: shadow` (không bắt buộc ở v2.0) |
 | Missed reason | `no_pullback / too_deep / no_trigger / filtered` | Trend bỏ lỡ vì đâu |
+| Tín hiệu bị chặn | `direction_conflict` / `correlated_cap` / `slot_cap` | Vì sao không vào lệnh |
 
 ## 13.2 Ngưỡng MVP
 
@@ -1715,11 +1760,9 @@ Thời gian: ~120–180 giờ trong 12 tuần cho MVP; +40–60 giờ cho Trend 
 | Profit factor | > 1,15 |
 | Max DD | < 8% mock, < 6% live |
 | Fees/gross | < 30% |
-| Số lệnh/4 tuần | ≥ 40 |
+| Số lệnh/2 tuần mock | MR ≥ 50; Trend ≥ 6 |
 | Slippage | ≤ 2 bps so với model |
-| Shadow tín hiệu/4 tuần | ≥ 20 (Trend) |
-| Shadow fill rate | ≥ 40% (Trend) |
-| Expectancy theo `side` | Báo cáo tách long/short; short chỉ được tính khi ≥50 lệnh |
+| Expectancy theo `side` | Báo cáo tách long/short; nhánh nào < 50 lệnh thì **không kết luận**, chỉ ghi nhận |
 
 ## 13.3 Cách tránh tự lừa mình
 
@@ -1733,7 +1776,7 @@ Thời gian: ~120–180 giờ trong 12 tuần cho MVP; +40–60 giờ cho Trend 
 
 # 14. Kết quả kỳ vọng (thực tế)
 
-## 14.1 Mock 4 tuần (5.000 USD)
+## 14.1 Mock 2 tuần (5.000 USD)
 
 | Kịch bản | Kết quả | Diễn giải |
 |---|---|---|
@@ -1743,7 +1786,7 @@ Thời gian: ~120–180 giờ trong 12 tuần cho MVP; +40–60 giờ cho Trend 
 
 Mục tiêu **không phải** PnL mà là: 0 sự cố, số liệu khớp backtest, hiểu hệ thống.
 
-## 14.2 Live 8–12 tuần (300 USD)
+## 14.2 Live 8 tuần (300 USD)
 
 | Kịch bản | Kết quả | Tiền |
 |---|---|---|
@@ -1823,80 +1866,61 @@ DeepSeek V4 Flash/call   = 4.000×0,0434/1M + 700×0,30/1M   ≈ 0,000384 USD
 
 → **Ngân sách thực tế 2–7 USD/tháng**, không phải 20–50. Cap cứng trong code: `ai_budget_usd_per_day: 0.25` (~7,5 USD/tháng) và dừng gọi khi chạm cap (fallback multiplier = 1,0, ghi `events`).
 
-## 15.2 Trend Pullback (phase 3, có shadow mode)
+## 15.2 Trend Pullback — **live ở MVP v2.0 (long + short)**
 
-### Vì sao shadow trước
+### Quyết định 18/11/2026
 
-Trend 1h chỉ có 3–8 lệnh/tuần trên 25 symbol. Bốn tuần mock = 12–32 lệnh, không đủ kết luận. Shadow mode cho phép bắt đầu đo **ngay từ tuần 7** mà không thêm rủi ro và không làm nhiễu kết quả MVP.
+Bản 1.x để Trend ở phase 3 và chạy shadow trước, `allow_short: false`. v2.0 đưa Trend **vào live ngay**, cả long và short. Lý do:
 
-### Shadow mode là gì
+- Phase 3 đầy đủ (shadow → mock → forward 12 tuần → live) tốn thêm ~12 tuần. Trong khi đó MR chỉ phủ ~13% thời gian; downtrend kéo dài thì hệ thống gần như đứng ngoài.
+- Bỏ Squeeze đã **xoá xung đột chiều** (`SQUEEZE`-down vs `TREND`-short) — lý do #4 của bản 1.x không còn.
+- Người vận hành chấp nhận rủi ro gap của buy-stop để rút ngắn 3 tháng.
 
-- Strategy tính signal đầy đủ.
-- Không gọi API order; ghi vào `signals` + `shadow_trades`.
-- Giả lập fill bảo thủ: market tại open nến sau; limit chỉ khớp nếu giá xuyên qua.
-- Tính R ảo, MAE/MFE, và **lý do bỏ lỡ**: `no_pullback`, `too_deep`, `no_trigger`, `regime_filtered`.
-- Dashboard hiển thị tab "Trend (shadow)".
+### Rủi ro đã chấp nhận (ghi rõ để không tự lừa mình)
 
-### Điều kiện chuyển từ shadow sang mock có lệnh
-
-- MVP MR + Squeeze pass go/no-go 4 tuần.
-- Shadow ≥ 20 tín hiệu, 0 lỗi logic.
-- PnL tách được theo `strategy_id`.
-- Global position manager chặn 2 chiến lược mở cùng symbol.
-- Có sổ ảo + risk budget riêng (20%).
+| Rủi ro | Hệ quả |
+|---|---|
+| Mẫu không đủ | 8 tuần × 3–8 lệnh/tuần ÷ 2 nhánh = **12–32 lệnh/nhánh** < 50. Kết luận hợp lệ là "ổn định vận hành, chưa đủ mẫu để nói có edge" |
+| Gap buy-stop | SL short nằm trên giá; panic rally có thể nhảy qua. 1 gap 2–3× stop × 4 vị thế đủ chạm daily −2% → HALT |
+| Funding âm | Short phải trả funding trong downtrend gắt; chưa đo trên chính hệ thống này |
+| Multiple testing | Thêm 2 biến thể (long/short) bằng 1 quyết định là đúng bẫy §3.7. Chấp nhận, và **không** thêm bất kỳ biến thể nào khác trong 8 tuần |
 
 ### Spec
 
-- Regime `TREND` + 1h signal / 4h filter.
-- Entry: hồi 30–61,8% impulse, chạm EMA20/50, volume giảm, RSI 40–55.
-- Exit: trailing 2×ATR + time stop 36 nến.
-- Chung risk bucket với Squeeze nếu cùng hướng.
+- Regime `TREND` + `trend_dir` (xem §6.2) + 1h signal / 4h context.
+- Entry: hồi 30–61,8% impulse, chạm EMA20/50, volume giảm, RSI 40–55 (long) / 45–60 (short).
+- **Entry bằng market tại open nến 1h kế tiếp**, guard `spread < 2 bps`. Lý do: mẫu là thứ khan hiếm nhất; chênh phí maker/taker (~0,06 USD = ~8% của R) nhỏ hơn nhiều so với việc mất một nửa số lần vào lệnh.
+- Exit: trailing 2×ATR sau khi lãi ≥1,5×ATR + time stop 36 nến 1h, **không TP**.
+- Không chung risk bucket với chiến lược nào khác (Squeeze đã bỏ); vẫn chịu `max_positions_per_strategy = 2` và correlated cap.
 - Thêm 1 file strategy, không sửa core.
 
-### Long và short: định nghĩa đối xứng nhưng **chỉ bật long**
-
-Định nghĩa đối xứng (dùng cho code, để không phải viết lại về sau):
+### Long và short: định nghĩa đối xứng, **bật cả hai**
 
 | Thành phần | Long | Short |
 |---|---|---|
-| Regime | `EMA50 > EMA200`, cấu trúc HH/HL | `EMA50 < EMA200`, cấu trúc LH/LL |
+| `trend_dir` | `+1` (`EMA50 > EMA200` trên 15m, khớp 1h) | `−1` (`EMA50 < EMA200` trên 15m, khớp 1h) |
+| Cấu trúc | HH/HL | LH/LL |
 | Pullback | hồi 30–61,8% impulse tăng | hồi 30–61,8% impulse giảm |
 | Vùng chạm | EMA20/50 từ dưới | EMA20/50 từ trên |
 | RSI | 40–55 | 45–60 |
-| SL | `swing_low − 1,5×ATR` | `swing_high + 1,5×ATR` |
+| SL | `swing_low − 1,5×ATR` (stop-market `closePosition`) | `swing_high + 1,5×ATR` (**buy-stop** `closePosition`) |
 | Trailing | lãi ≥1,5×ATR → `đỉnh − 2×ATR` | lãi ≥1,5×ATR → `đáy + 2×ATR` |
 
-**Quyết định MVP: `allow_short: false`.** Lý do, theo thứ tự quan trọng:
+Đơn giản hoá có chủ ý: bản 1.x yêu cầu "cấu trúc HH/HL" nhưng chưa định nghĩa code (pivot/fractal). MVP dùng **độ dốc EMA50 + thứ tự EMA** làm proxy cấu trúc; ghi lại ở đây để không ai tưởng đã implement đủ.
 
-1. **Không đủ power thống kê.** Trend 1h chỉ 3–8 lệnh/tuần/25 symbol; chia đôi long/short thì mỗi nhánh cần 12 tuần riêng để đạt ≥50 lệnh. MVP cần kết luận trong 22 tuần, không phải 34.
-2. **Skew xấu hơn.** SL của short là buy-stop trong panic rally → gap + slippage tệ hơn SL long; win rate thấp hơn, tail risk dày hơn. Ở mẫu nhỏ, không phân biệt được edge với may mắn.
-3. **Multiple testing.** Thêm một biến thể để thử là đúng bẫy 3.7/13.3. Chưa có dữ liệu long thì không có cơ sở bật short.
-4. **Xung đột chiều.** Trong downtrend, `SQUEEZE` breakout xuống và `TREND-short` sẽ tranh cùng symbol; luật "1 chiến lược/symbol" hiện tại chưa phủ trường hợp này.
-5. **Lợi ích của short không miễn phí.** Funding dương (long trả short) là carry thật, nhưng phải chống lại drift tăng của giá; lợi ích này chưa đo được trên chính hệ thống này.
+### Điều kiện đánh giá sau 8 tuần live
 
-**Điều kiện để bật short (cả 3, không thoả thì không bật):**
-
-- Long-trend đã pass: ≥50 lệnh, expectancy > 0 sau phí + funding + slippage, DD trong budget 20%.
-- Shadow short ≥50 lệnh, tách riêng trong `shadow_trades` với `side`, và **dương sau phí**.
-- Có luật chặn rõ: `TREND-short` và `SQUEEZE` không được cùng symbol (mở rộng global position manager), cộng correlation cap hiện có.
-
-Trong shadow hiện tại, vẫn **ghi signal short** (side, reason, R ảo) nhưng không tính vào PnL; làm vậy để có dữ liệu short miễn phí mà không tăng rủi ro hay thời gian chạy.
-
-### Điều kiện lên live
-
-- 12 tuần forward (4 shadow + 8 có lệnh mock).
-- ≥ 50 lệnh shadow/mock.
-- Expectancy > 0 sau phí + funding + slippage.
-- Max DD trong budget 20%, không ảnh hưởng MVP.
-- Nếu fail → giữ shadow, không lên live.
-- `allow_short` chỉ bật khi thoả cả 3 điều kiện short ở trên; nếu không, live chỉ long.
+- Expectancy > 0 sau phí + funding + slippage (nếu chưa đủ mẫu → **không kết luận**, chỉ tiếp tục quan sát).
+- `open_short` không làm hỏng MR: DD tổng < 6%, không có ngày chạm daily limit quá 1 lần/tuần.
+- Slippage trung bình theo `side`; nếu short > 10 bps → xem lại universe/điều kiện vào.
+- 0 xung đột lệnh cùng symbol, 0 ca `direction_conflict` lọt qua.
 
 ### Cảnh báo
 
 - Mock fill lạc quan; trend dùng market entry nên ít bị ảnh hưởng hơn limit, nhưng SL slippage trong sóng mạnh vẫn cao.
-- Không dùng 4 tuần mock để kết luận; cần 12 tuần.
-- Không bật trend live cùng lúc với thay đổi tham số MVP.
-- Nếu bật short: SL short là buy-stop trong panic rally, slippage và gap có thể xấu hơn long đáng kể — phải dùng `priceProtect` và đo riêng slippage theo `side`.
+- **Không** dùng 2 tuần mock để kết luận trend có edge; và 8 tuần live cũng chưa đủ cho 2 nhánh.
+- Không bật trend live cùng lúc với thay đổi tham số MR.
+- SL short là buy-stop trong panic rally: bắt buộc `priceProtect` + `workingType=MARK_PRICE` + đo slippage riêng theo `side`.
 
 ## 15.3 Funding carry (phase 4)
 
@@ -1925,9 +1949,9 @@ Trong shadow hiện tại, vẫn **ghi signal short** (side, reason, R ảo) nh�
 14. Bỏ qua funding khi giữ lệnh nhiều ngày.
 15. Dùng stop quá hẹp vì "risk nhỏ" → phí ăn hết R.
 16. Public dashboard không auth, hoặc cho dashboard đặt lệnh trực tiếp.
-17. Chạy Trend live trước khi đủ 12 tuần forward.
-18. Dùng kết quả mock 4 tuần để kết luận Trend có edge.
-19. Bật Trend-short khi long-trend chưa pass, hoặc chia mẫu long/short quá sớm khiến cả hai nhánh đều thiếu power.
+17. Tưởng rằng bật Trend live sớm nghĩa là đã có edge — 8 tuần live không đủ 50 lệnh/nhánh, nên kết luận chỉ được là "ổn định vận hành".
+18. Dùng kết quả mock 2 tuần để kết luận Trend có edge.
+19. Nâng risk/lệnh lên 0,5% trước checkpoint tuần 4, hoặc coi việc "đã bật short" là lý do để nới correlated cap.
 20. `docker compose down -v` trên prod (xóa volume = xóa DB).
 21. COPY `.env` vào image hoặc commit `.env` lên git.
 
@@ -1998,10 +2022,10 @@ ts,symbol,strategy,side,entry,exit,qty,notional,sl,tp,risk_usd,pnl_usd,pnl_r,fee
 
 ## C. Checklist trước khi bật live
 
-- [ ] Mock 4 tuần pass go/no-go.
+- [ ] Mock 2 tuần pass go/no-go §9.5.
 - [ ] Reconcile = 0 trong 7 ngày liên tiếp.
 - [ ] Kill switch test thành công 3 cấp.
-- [ ] SL luôn tồn tại (audit log 100% vị thế).
+- [ ] SL luôn tồn tại (audit log 100% vị thế) — kể cả lệnh short.
 - [ ] API key không quyền rút, IP whitelist.
 - [ ] VPS auto-restart, alert Telegram group hoạt động (nhận được tin test).
 - [ ] Backup DB tự động.
@@ -2012,7 +2036,7 @@ ts,symbol,strategy,side,entry,exit,qty,notional,sl,tp,risk_usd,pnl_usd,pnl_r,fee
 - [ ] `.dockerignore` có `.env`, `data/`, `.git`; `docker history` không lộ secret.
 - [ ] Backup/restore named volume đã test; không dùng `down -v` trên prod.
 - [ ] Sổ ảo + risk budget tách theo `strategy_id`.
-- [ ] Nếu bật Trend live: đã có ≥ 12 tuần forward và ≥ 50 lệnh shadow/mock.
+- [ ] Live: `max_positions_per_strategy = 2`, correlated cap 0,5% đã bật và có test.
 - [ ] Bạn đã đọc và hiểu incident playbook.
 - [ ] Bạn chấp nhận mất 300 USD như học phí.
 
@@ -2059,4 +2083,4 @@ docker compose logs -f --tail=100 engine
 
 ---
 
-**Kết luận:** MVP này không được thiết kế để "kiếm tiền". Nó được thiết kế để **không chết** trong lúc bạn học. Ranh giới cốt lõi: Python là bộ não duy nhất, dashboard Node.js chỉ để nhìn và bấm dừng, Trend Pullback chạy shadow trước khi có tiền thật. Nếu sau 12 tuần hệ thống vẫn chạy, sổ sách minh bạch, drawdown trong giới hạn, và bạn hiểu từng quyết định của nó — đó là thành công thật, và là nền tảng duy nhất đáng để mở rộng tiếp.
+**Kết luận:** MVP này không được thiết kế để "kiếm tiền". Nó được thiết kế để **không chết** trong lúc bạn học. Ranh giới cốt lõi: Python là bộ não duy nhất, dashboard Node.js chỉ để nhìn và bấm dừng, mọi vị thế luôn có SL. v2.0 rút ngắn thời gian bằng cách bỏ Squeeze và bật Trend long+short live ngay — đổi lấy việc **chấp nhận rủi ro gap của buy-stop và một mẫu trend không đủ lớn để kết luận trong 8 tuần**. Nếu sau lộ trình này hệ thống vẫn chạy, sổ sách minh bạch, drawdown trong giới hạn, và bạn hiểu từng quyết định của nó — đó là thành công thật, và là nền tảng duy nhất đáng để mở rộng tiếp.

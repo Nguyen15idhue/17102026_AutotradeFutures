@@ -1,7 +1,11 @@
-# PHASE 3 TASK — MỞ RỘNG CHIẾN LƯỢC (TREND + CARRY)
+# PHASE 3 TASK — MỞ RỘNG CHIẾN LƯỢC (FUNDING CARRY)
 
 **Tài liệu triển khai chi tiết · Phase 3/3**
-Phiên bản: 1.0 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.6 §15.2, §15.3
+Phiên bản: 1.1 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.0 §15.2, §15.3
+
+> **Thay đổi lớn ở v1.1 (18/11/2026):** Trend Pullback đã được **chuyển vào Phase 1** và bật live
+> (cả long + short). Do đó **P3.0–P3.5 không còn là việc phải làm** — chúng đã bị hấp thụ hoặc huỷ.
+> Phase 3 giờ chỉ còn **P3.6 Funding carry**. Các mục P3.0–P3.5 giữ lại để đọc lịch sử quyết định.
 
 ---
 
@@ -11,64 +15,58 @@ Phiên bản: 1.0 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-
 
 | Phase | Nội dung | Vốn thật | Chi phí/tháng |
 |---|---|---|---|
-| 1 | MVP: MR + Squeeze, mock 4 tuần, live 300 USD 8 tuần | 300 USD | 0 USD |
+| 1 | MVP: MR + Trend (long + short), mock 2 tuần, live 300 USD 8 tuần | 300 USD | 0 USD |
 | 2 | AI gate: 2 LLM phủ quyết/giảm size | giữ 300 USD | 2–7 USD |
-| **3 (file này)** | **Trend Pullback live** + **Funding carry** (phase con cuối) | tăng dần | 2–7 USD |
+| **3 (file này)** | **Funding carry** (delta-neutral). Trend đã ở Phase 1. | tăng dần | 2–7 USD |
 
 ### 0.2 Vì sao phải có Phase 3
 
-Phase 1 chỉ kiếm tiền trong `RANGE` và `SQUEEZE`. Nghĩa là **bỏ toàn bộ sóng trend** — mà crypto dành phần lớn thời gian biến động mạnh ở dạng trend. Phase 3 mở khoá phần đó.
+Phase 1 kiếm tiền trong `RANGE` (MR) và `TREND` (Trend long + short). Phase 3 **không còn mở khoá trend** — việc đó đã làm ở spec v2.0; Phase 3 chỉ thêm **funding carry**, một nguồn thu không đánh hướng.
 
 Phase 3 cũng là phase **nguy hiểm nhất về mặt tâm lý**, vì lúc này bạn đã có lãi (hoặc nghĩ là có) và muốn tăng size. Đây đúng là lúc dễ vi phạm §16 nhất.
 
-### 0.3 Hai mảng của Phase 3
+### 0.3 Nội dung của Phase 3 (v1.1)
 
-**a) Trend Pullback** — chiến lược thứ 3, khung 1h, vào lệnh khi giá hồi 30–61,8% của một impulse trong xu hướng mạnh. Nuôi bằng trailing 2 ATR, không TP. Win rate thấp (35–45%), lãi đến từ đuôi dày.
+**Funding carry** — không đánh hướng. Long spot + short perp cùng khối lượng = delta-neutral; thu funding 8h/lần, rủi ro hướng gần 0. Đây là "nền an toàn" cho danh mục, nhưng cần hạ tầng spot (thêm API, thêm quản lý basis).
 
-**b) Funding carry** — không đánh hướng. Long spot + short perp cùng khối lượng = delta-neutral; thu funding 8h/lần, rủi ro hướng gần 0. Đây là "nền an toàn" cho danh mục, nhưng cần hạ tầng spot (thêm API, thêm quản lý basis).
+**Đã chuyển sang Phase 1 (không làm ở đây nữa):** Trend Pullback live long + short, `trend_dir`, khung 4h, global position manager. Xem `docs/phase1_task.md` P1.3/P1.4/P1.6 và spec §15.2.
 
-### 0.4 Vì sao Trend phải shadow trước
+### 0.4 Vì sao Trend **không** còn shadow trước (quyết định 18/11/2026)
 
-Trend 1h chỉ có **3–8 lệnh/tuần trên 25 symbol**. Bốn tuần mock = 12–32 lệnh → **không đủ để kết luận**. Nếu vừa chạy vừa đánh giá, bạn sẽ kết luận bằng cảm giác.
+Bản 1.0 yêu cầu shadow trước vì "4 tuần mock = 12–32 lệnh là không đủ kết luận". Điều đó vẫn đúng về mặt thống kê, nhưng v2.0 chọn đánh đổi khác: **bật live ngay, chấp nhận rằng 8 tuần live cũng chưa đủ 50 lệnh/nhánh**. Kết luận hợp lệ cho Trend vì thế là "ổn định vận hành, chưa đủ mẫu để nói có edge" — không phải "Trend có lãi".
 
-Shadow mode cho phép bắt đầu đo **từ tuần 7 của Phase 1** mà không thêm rủi ro và không làm nhiễu kết quả MVP. Đến Phase 3, bạn đã có sẵn 8–10 tuần dữ liệu shadow.
+### 0.5 Vì sao bật cả short (quyết định 18/11/2026)
 
-### 0.5 Vì sao chỉ bật long trước
+Người vận hành chấp nhận rủi ro gap của buy-stop để rút ngắn ~3 tháng. Hai lý do phản đối cũ đã hết hiệu lực:
 
-Định nghĩa long/short đối xứng nhưng Phase 3 **chỉ bật long** (`allow_short: false`). Ba lý do:
+- **Xung đột chiều:** `SQUEEZE`-down vs `TREND`-short — Squeeze đã bị huỷ, nên không còn tranh chấp.
+- **Không đủ power thống kê:** vẫn đúng, nhưng nay được ghi nhận là **giới hạn đã biết** thay vì lý do để hoãn.
 
-1. **Không đủ power thống kê.** Chia đôi long/short thì mỗi nhánh cần 12 tuần riêng để đạt ≥50 lệnh. MVP cần kết luận trong 22 tuần, không phải 34.
-2. **Skew xấu hơn.** SL của short là buy-stop trong panic rally → gap + slippage tệ hơn long; ở mẫu nhỏ không phân biệt được edge với may mắn.
-3. **Xung đột chiều.** Trong downtrend, `SQUEEZE` breakout xuống và `TREND-short` tranh cùng symbol — luật "1 chiến lược/symbol" hiện tại chưa phủ trường hợp này.
-
-Điều kiện bật short (cả 3, không thoả thì không bật):
-
-- Long-trend pass: ≥ 50 lệnh, expectancy > 0 sau phí + funding + slippage, DD trong budget 20%.
-- Shadow short ≥ 50 lệnh (tách riêng, có `side`), **dương sau phí**.
-- Có luật chặn: `TREND-short` và `SQUEEZE` không được cùng symbol.
+Rủi ro còn lại (gap buy-stop, funding âm, multiple testing) được ghi rõ ở spec §15.2 và không được dùng để biện minh cho việc nới risk limit.
 
 ### 0.6 Định nghĩa "xong" của Phase 3
 
-- Trend live chạy ổn định, PnL tách được theo `strategy_id`.
-- Không xung đột lệnh giữa 2 chiến lược trên cùng symbol (0 vi phạm trong toàn kỳ).
-- Max DD của Trend trong budget 20%, không kéo MVP xuống.
-- (Nếu làm carry) carry chạy được với basis và funding đo thật.
+- Carry chạy được với basis và funding đo thật, delta-neutral trong giới hạn.
+- Không ảnh hưởng MR/Trend đang chạy ở Phase 1 (tách `strategy_id`, tách risk budget).
+- (Điều kiện) Nếu bật thêm biến thể chiến lược nào, phải có walk-forward + ghi lý do.
 
-### 0.7 Cấu trúc phase con
+### 0.7 Cấu trúc phase con (v1.1)
 
-| Mã | Phase con | Thời lượng | Cổng ra |
+| Mã | Phase con | Trạng thái | Ghi chú |
 |---|---|---|---|
-| P3.0 | Kế thừa dữ liệu shadow từ Phase 1 | 0 (đã chạy) | ≥ 20 tín hiệu, 0 lỗi logic, fill rate ≥ 40% |
-| P3.1 | Bật Trend trên mock, budget 20% | 4 tuần | ≥ 50 lệnh mock, PnL tách được |
-| P3.2 | Global position manager (chống xung đột) | 1 tuần | 0 xung đột trong test |
-| P3.3 | Forward 12 tuần tổng (4 shadow + 8 có lệnh) | 8 tuần | expectancy > 0 sau phí |
-| P3.4 | Trend live, risk 0,2% | 4–8 tuần | ổn định, DD trong budget |
-| P3.5 | (Điều kiện) bật short | sau P3.4 | thoả cả 3 điều kiện §0.5 |
-| P3.6 | Funding carry (phase 4 nội bộ) | 4–6 tuần | delta-neutral, funding đo thật |
+| P3.0 | Kế thừa dữ liệu shadow | ⛔ Huỷ | Không có shadow ở v2.0 (Trend live ngay) |
+| P3.1 | Bật Trend trên mock | ⛔ Huỷ | Trend đã chạy trong mock 2 tuần ở P1.7 |
+| P3.2 | Global position manager | ⛔ Huỷ | Không cần: Squeeze bỏ → không còn xung đột chiều; slot + correlated cap nằm ở P1.3 |
+| P3.3 | Forward 12 tuần | ⛔ Huỷ | Thay bằng 8 tuần live ở P1.8 |
+| P3.4 | Trend live | ⛔ Huỷ | Đã gộp vào P1.8 |
+| P3.5 | (Điều kiện) bật short | ⛔ Huỷ | Short đã bật ở P1.8, rủi ro được chấp nhận |
+| P3.6 | Funding carry | ⬜ Chưa | **Việc duy nhất còn lại của Phase 3**, 4–6 tuần |
 
 ---
 
-## P3.0 — Kế thừa dữ liệu shadow (không tốn thời gian)
+## P3.0 — Kế thừa dữ liệu shadow (không tốn thời gian) — **ĐÃ HUỶ (v1.1)**
+
+> Không có shadow ở v2.0: Trend chạy live ngay từ P1.8. Phần dưới chỉ để đọc lịch sử.
 
 ### Giải thích cơ bản
 
@@ -115,7 +113,9 @@ Bước này chỉ là đọc lại dữ liệu đó và quyết định có đ�
 
 ---
 
-## P3.1 — Bật Trend trên mock, budget 20% (4 tuần)
+## P3.1 — Bật Trend trên mock, budget 20% (4 tuần) — **ĐÃ HUỶ (v1.1)**
+
+> Trend đã chạy trong mock 2 tuần ở P1.7 (`docs/phase1_task.md`).
 
 ### Giải thích cơ bản
 
@@ -166,7 +166,9 @@ Trend được cấp một "ví" riêng: 20% tổng risk budget. Nghĩa là nế
 
 ---
 
-## P3.2 — Global position manager (1 tuần)
+## P3.2 — Global position manager (1 tuần) — **ĐÃ HUỶ (v1.1)**
+
+> Không còn cần: Squeeze bị huỷ nên hết xung đột `SQUEEZE`-down vs `TREND`-short. Slot/chiến lược và correlated cap nằm ở P1.3.
 
 ### Giải thích cơ bản
 
@@ -218,7 +220,9 @@ Global position manager là lớp chặn duy nhất, đặt **trước** risk en
 
 ---
 
-## P3.3 — Forward 12 tuần (8 tuần có lệnh) (8 tuần)
+## P3.3 — Forward 12 tuần (8 tuần có lệnh) (8 tuần) — **ĐÃ HUỶ (v1.1)**
+
+> Thay bằng 8 tuần live ở P1.8, với ghi nhận rằng mẫu trend sẽ không đủ 50 lệnh/nhánh.
 
 ### Giải thích cơ bản
 
@@ -268,7 +272,9 @@ Global position manager là lớp chặn duy nhất, đặt **trước** risk en
 
 ---
 
-## P3.4 — Trend live, risk 0,2% (4–8 tuần)
+## P3.4 — Trend live, risk 0,2% (4–8 tuần) — **ĐÃ HUỶ (v1.1)**
+
+> Đã gộp vào P1.8: Trend live cả long + short, risk 0,25% → 0,5% sau checkpoint tuần 4.
 
 ### Giải thích cơ bản
 
@@ -318,7 +324,9 @@ Trend lên live với **risk nhỏ hơn MVP** (0,2% so với 0,25–0,5%) vì n�
 
 ---
 
-## P3.5 — (Điều kiện) Bật short
+## P3.5 — (Điều kiện) Bật short — **ĐÃ HUỶ (v1.1)**
+
+> Short đã bật ở P1.8 (quyết định 18/11/2026). Rủi ro gap buy-stop được chấp nhận và ghi ở spec §15.2; không dùng việc "đã bật" để nới risk limit.
 
 ### Giải thích cơ bản
 
@@ -421,15 +429,15 @@ Carry không đánh hướng giá. Bạn **mua spot** coin và **bán perp** cù
 
 | Mã | Phase con | Trạng thái | Ngày xong | Ghi chú |
 |---|---|---|---|---|
-| P3.0 | Kế thừa shadow | ⬜ Chưa | | |
-| P3.1 | Trend mock, budget 20% | ⬜ Chưa | | |
-| P3.2 | Global position manager | ⬜ Chưa | | |
-| P3.3 | Forward 12 tuần | ⬜ Chưa | | |
-| P3.4 | Trend live 0,2% | ⬜ Chưa | | |
-| P3.5 | (Điều kiện) short | ⬜ Chưa | | |
-| P3.6 | Funding carry | ⬜ Chưa | | |
+| P3.0 | Kế thừa shadow | ⛔ Huỷ | 18/11/2026 | Không có shadow ở v2.0 |
+| P3.1 | Trend mock, budget 20% | ⛔ Huỷ | 18/11/2026 | Đã chạy trong P1.7 |
+| P3.2 | Global position manager | ⛔ Huỷ | 18/11/2026 | Squeeze bỏ → hết xung đột chiều |
+| P3.3 | Forward 12 tuần | ⛔ Huỷ | 18/11/2026 | Thay bằng 8 tuần live P1.8 |
+| P3.4 | Trend live 0,2% | ⛔ Huỷ | 18/11/2026 | Gộp vào P1.8 |
+| P3.5 | (Điều kiện) short | ⛔ Huỷ | 18/11/2026 | Đã bật ở P1.8 |
+| P3.6 | Funding carry | ⬜ Chưa | | Việc duy nhất còn lại |
 
-**Kết thúc Phase 3 = hệ thống hoàn chỉnh:** 3 chiến lược (MR, Squeeze, Trend), AI gate tùy chọn, dashboard, kill switch, và (tùy chọn) carry delta-neutral.
+**Kết thúc Phase 3 = hệ thống hoàn chỉnh:** 2 chiến lược định hướng (MR + Trend long/short), AI gate tùy chọn, dashboard, kill switch, và (tùy chọn) carry delta-neutral.
 
 ---
 
@@ -438,3 +446,4 @@ Carry không đánh hướng giá. Bạn **mua spot** coin và **bán perp** cù
 | Ngày | Phiên bản | Nội dung |
 |---|---|---|
 | 17/11/2026 | 1.0 | Tạo mới, tách Trend (shadow → live) + funding carry từ spec v1.6 §15.2/§15.3 |
+| 18/11/2026 | 1.1 | **Thu hẹp Phase 3 còn funding carry.** Trend đã chuyển vào Phase 1 và bật live cả long + short (spec v2.0); P3.0–P3.5 huỷ, giữ lại làm lịch sử quyết định |

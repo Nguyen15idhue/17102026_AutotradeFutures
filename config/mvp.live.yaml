@@ -1,0 +1,122 @@
+# config/mvp.live.yaml — MVP v2.0 (Binance USDⓈ-M Futures thật)
+# Quy ước: file này KHÔNG chứa secret. API key/secret chỉ nằm trong .env trên VPS.
+# Tách riêng khỏi mvp.mock.yaml — không override lẫn nhau (AGENTS §5).
+
+env: live
+base_url: https://fapi.binance.com
+ws_url: wss://fstream.binance.com
+equity_base: 300               # đúng 300 USD trên futures account, không nạp thêm
+
+universe:
+  symbols: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT,
+            DOGEUSDT, ADAUSDT, AVAXUSDT, LINKUSDT, SUIUSDT]
+  min_quote_volume_24h: 100_000_000
+  max_spread_bps: 2
+
+timeframes:
+  signal: 15m
+  data: 1m
+  context: 1h
+  trend_signal: 1h
+  trend_context: 4h
+
+risk:
+  risk_per_trade: 0.0025       # 0,25% 4 tuần đầu; chỉ nâng 0,005 sau checkpoint tuần 4 (AGENTS §4)
+  max_leverage: 3
+  max_positions: 4             # quyết định 18/11/2026 (trước: 2)
+  daily_loss_limit: 0.02
+  weekly_loss_limit: 0.04
+  max_drawdown: 0.06
+  portfolio_risk_max: 0.02     # quyết định 18/11/2026 (trước: 0,01). 4 × 0,25% = 1,0% hiện tại;
+                               # chạm 2,0% đúng lúc nâng risk/lệnh lên 0,5%
+  max_correlated_risk: 0.005   # quyết định 18/11/2026 (trước: 0,01) -> tối đa 2 vị thế cùng nhóm tương quan
+  blackout_minutes: 45
+  stale_data_seconds: 3
+  funding_close_bps: 10
+  margin_usage_max: 0.60       # trên 300 USD đây là cap chặn thật (notional/3), không phải risk cap
+  narrow_stop_warn_pct: 0.005
+
+regime:
+  atr_period: 14
+  adx_period: 14
+  bb_period: 20
+  bb_std: 2
+  bbw_lookback_days: 90
+  range_lookback_days: 90
+  range_pct_max: 50
+  squeeze_range_pct_max: 30
+  vol_lookback_days: 30
+  vol_pct_min: 20
+  vol_pct_max: 60
+  bbw_pct_min: 15              # LUẬT CỨNG
+  squeeze_bbw_pct_max: 20
+  adx_range_max: 20
+  adx_trend_min: 22
+  hysteresis_bars: 3
+  cooldown_bars: 5
+  crisis_confirm_bars: 1
+  trend_dir_confirm_bars: 3
+
+strategies:
+  allocation:
+    mean_reversion: 0.5
+    trend_pullback: 0.5
+    squeeze_breakout: 0.0      # HUỶ ở v2.0
+  max_positions_per_strategy: 2
+  mean_reversion:
+    enabled: true
+    z_entry: 2.0
+    stop_atr: 1.2
+    tp: mid
+    time_stop_bars: 12
+    entry: post_only
+    ttl_bars: 2
+  squeeze_breakout:
+    enabled: false
+  trend_pullback:
+    enabled: true
+    mode: live
+    allow_short: true          # DUYỆT 18/11/2026
+    timeframe: 1h
+    context_timeframe: 4h
+    ema_fast: 50
+    ema_slow: 200
+    adx_min: 22
+    fib_min: 0.30
+    fib_max: 0.618
+    rsi_min: 40
+    rsi_max: 55
+    short_rsi_min: 45
+    short_rsi_max: 60
+    stop_atr: 1.5
+    trail_atr: 2.0
+    trail_after_atr: 1.5
+    time_stop_bars: 36
+    entry: market
+    require_spread_bps_below: 2
+
+execution:
+  entry_ttl_bars: 2
+  sl_working_type: MARK_PRICE
+  price_protect: true
+  reconcile_seconds: 5
+  max_retries: 3
+  recv_window_ms: 5000
+  fee_bps_maker: 2
+  fee_bps_taker: 5
+  slippage_bps: 5
+  max_orders_per_day: 5        # live
+
+dashboard:
+  enabled: true
+  host: 127.0.0.1              # chỉ localhost, truy cập qua SSH tunnel
+  port: 8080
+  poll_ms: 1000
+  auth: basic
+  allowlist_commands: [pause, resume, flatten, stop]
+
+ops:
+  telegram_enabled: true
+  telegram_topic_id: null
+  log_level: INFO
+  db_path: data/bot.db

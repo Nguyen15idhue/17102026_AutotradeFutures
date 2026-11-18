@@ -1,7 +1,7 @@
 # PHASE 0 — BINANCE DEMO SERVER (MOCK)
 
 **Kế hoạch triển khai container `binance-demo-server`**
-Phiên bản: 1.0 · Ngày: 17/11/2026
+Phiên bản: 1.2 · Ngày: 18/11/2026
 Nguồn tham chiếu: `https://developers.binance.com/en/docs/products/derivatives-trading-usds-future` (mirror đọc được: `developers.binance.info/legacy-docs/...`)
 Liên quan: `docs/mvp-binance-futures-bot.md` §7.9, `docs/phase1_task.md` P1.1/P1.3
 
@@ -988,9 +988,9 @@ P1.1–P1.6 (phase1_task.md)   → chạy trên mock thay vì demo
         ↓
 Live smoke test ≤ 0.05 USD    → xác nhận Binance thật chấp nhận payload
         ↓
-Live 100 USD (L0 → L1)        → theo cấu hình 100 USD
+Live 300 USD (L0 → L1)        → risk 0,25% 4 tuần đầu, 4 vị thế (spec v2.0)
         ↓
-Song song: retry demo mỗi tuần; nếu hoạt động lại → 4 tuần demo 5.000 USD
+Song song: retry demo mỗi tuần; nếu hoạt động lại → 2 tuần demo 5.000 USD
 ```
 
 ---
@@ -1013,6 +1013,7 @@ Song song: retry demo mỗi tuần; nếu hoạt động lại → 4 tuần demo
 |---|---|---|
 | 17/11/2026 | 1.0 | Tạo mới; thông số endpoint lấy từ developers.binance.com (USDⓈ-M Futures), xác minh demo REST/WS host, Algo order, ALGO_UPDATE schema |
 | 17/11/2026 | 1.1 | **Hoàn tất Phase 0 (M0.1–M0.11)**: 104 test pass, container healthy 45 MB RAM, CI xanh. Xem báo cáo R0 bên dưới |
+| 18/11/2026 | 1.2 | Đồng bộ spec v2.0: kỳ mock rút còn 2 tuần (bỏ Squeeze) trong sơ đồ fallback |
 
 ---
 

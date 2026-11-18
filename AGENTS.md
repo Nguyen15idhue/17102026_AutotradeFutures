@@ -10,14 +10,16 @@ Bot tự động giao dịch **Binance USDⓈ-M Futures** (USDT-M, perpetual), v
 
 Mục tiêu **không phải** tối đa lợi nhuận mà là: **không chết** trong lúc học. Mọi quyết định kỹ thuật ưu tiên "không mất kiểm soát vị thế" hơn "tối ưu PnL".
 
-**Trạng thái hiện tại: đã có mock server (Phase 0 xong, 105 test). Chưa có engine/dashboard.**
+**Trạng thái hiện tại (18/11/2026): P1.1 xong phần code (soak 72h còn chờ VPS), P1.2 xong. Chưa có risk/exec/strategy/dashboard.**
 
 | Có gì | Chưa có gì |
 |---|---|
-| `mock/binance-demo-server/` — 48 endpoint, WS, SQLite, chaos | `engine/` (toàn bộ Phase 1) |
-| `mock/contracts/`, `mock/fixtures/` | `dashboard/` |
-| `docker-compose.yml` (mock + profile `app`), CI, 5 script PS | `config/mvp.*.yaml` |
-| `docs/` (6 file), `AGENTS.md`, `.env.example` | Backtest engine, regime/risk engine |
+| `mock/binance-demo-server/` — 48 endpoint, WS, SQLite, chaos | `risk/`, `exec/`, `strategies/`, `watchdog/` |
+| `engine/app/exchange/` — REST, WS, order state machine, reconcile, clock | `dashboard/` |
+| `engine/app/data/` — downloader, bars, features, replay, spotcheck, persist | Backtest engine |
+| `engine/app/regime/` — 5 nhãn + hysteresis + CRISIS tức thời | `trend_dir` (P1.2b) |
+| `config/mvp.mock.yaml`, `config/mvp.live.yaml` | Soak 72h pass (chạy trên VPS) |
+| `docker-compose.yml`, CI, script PS, `docs/` (6 file) | |
 
 ---
 
@@ -29,7 +31,7 @@ Mục tiêu **không phải** tối đa lợi nhuận mà là: **không chết**
 | `docs/phase0-binance-demo-server.md` | Mock `binance-demo-server`: endpoint, error code, cổng nghiệm thu | Khi implement mock |
 | `docs/phase1_task.md` | Phase 1 (MVP): P1.0–P1.8, checklist test, kết quả | Khi làm MVP |
 | `docs/phase2_task.md` | Phase 2: AI gate | Khi làm AI gate |
-| `docs/phase3_task.md` | Phase 3: Trend live + funding carry | Khi mở rộng chiến lược |
+| `docs/phase3_task.md` | Phase 3: funding carry (Trend đã chuyển vào Phase 1 ở v2.0) | Khi mở rộng chiến lược |
 | `.env.example` | Danh sách biến môi trường | Khi thêm secret/config mới |
 
 **Thứ tự ưu tiên khi tài liệu mâu thuẫn:** `mvp-binance-futures-bot.md` thắng. Nếu phát hiện mâu thuẫn, **báo cho user** thay vì tự chọn một bên.
@@ -49,7 +51,7 @@ Mục tiêu **không phải** tối đa lợi nhuận mà là: **không chết**
 7. **Không bao giờ** thêm code rút tiền, chuyển tiền nội bộ, hay universal transfer. API key không có quyền withdrawal.
 8. **Không commit `.env`**, không `COPY` `.env` vào image, không log secret/token/signature.
 9. **Không `docker compose down -v`** trên prod.
-10. **Không đổi tham số chiến lược giữa kỳ test** (4 tuần mock / 8 tuần live là một thí nghiệm, không phải một buổi chỉnh tay).
+10. **Không đổi tham số chiến lược giữa kỳ test** (2 tuần mock / 8 tuần live là một thí nghiệm, không phải một buổi chỉnh tay).
 11. **Không có nhánh `if mock:` trong engine.** Mock chỉ đổi `BINANCE_BASE_URL` / `BINANCE_WS_URL`.
 12. **Không dời SL ra xa entry** (long), không trung bình giá xuống, không martingale.
 
@@ -60,9 +62,10 @@ Mục tiêu **không phải** tối đa lợi nhuận mà là: **không chết**
 | Tham số | Mock | Live |
 |---|---|---|
 | Risk/lệnh | 0,5% | 0,25% (4 tuần đầu) → 0,5% |
-| Max positions | 4 | 2 |
-| Portfolio risk | 2,0% | 1,0% |
-| Max risk nhóm tương quan | 2,0% | 1,0% |
+| Max positions | 4 | 4 |
+| Vị thế/chiến lược | 2 | 2 |
+| Portfolio risk | 2,0% | 2,0% |
+| Max risk nhóm tương quan | 2,0% | 0,5% |
 | Daily / Weekly / DD | 2% / 4% / 6% | 2% / 4% / 6% |
 | Max lệnh/ngày | 10 | 5 |
 | Leverage | 3x isolated | 3x isolated |
@@ -70,13 +73,18 @@ Mục tiêu **không phải** tối đa lợi nhuận mà là: **không chết**
 | Blackout tin | ±45 phút | ±45 phút |
 | Stale data | 3s | 3s |
 
+> Đổi 18/11/2026 (duyệt bởi user, ghi ở spec §5.1/§11.1): live max positions 2 → **4**, portfolio 1,0% → **2,0%**, correlated 1,0% → **0,5%**. Hiệu lực risk hiện tại vẫn là 4 × 0,25% = 1,0%; portfolio 2,0% chỉ chạm khi nâng risk/lệnh lên 0,5% ở checkpoint tuần 4.
+
 Chiến lược (không tự đổi nếu chưa có walk-forward + lý do ghi lại):
 
 ```
 MR:      z ±2.0, stop 1.2×ATR ngoài biên, TP = mid, time stop 12 nến, post-only TTL 2 nến
-Squeeze: bbw_pct ≤ 20 (90d), buffer 0.2×ATR, vol_mult 1.5, stop 1.5×ATR,
-         trail 2×ATR sau 1×ATR, time stop 12 nến, KHÔNG TP
-Trend:   shadow trong MVP; 1h signal / 4h filter; allow_short = false
+Trend:   LIVE cả long + short (duyệt 18/11/2026); 1h signal / 4h context;
+         entry market tại open nến 1h + guard spread < 2 bps;
+         stop 1.5×ATR (short = buy-stop), trail 2×ATR sau 1.5×ATR, time stop 36 nến, KHÔNG TP;
+         trend_dir phải giữ 3 nến và khớp EMA50/200 trên 1h, nếu không -> direction_conflict
+Squeeze: ĐÃ HUỶ ở v2.0 — nhãn SQUEEZE vẫn tồn tại, không chiến lược nào chạy
+Allocation: 0.5 / 0.5 của portfolio cap; tối đa 2 vị thế/chiến lược
 Phí:     maker 0,02% · taker 0,05% · tính trên notional
 ```
 
@@ -104,7 +112,7 @@ Phí:     maker 0,02% · taker 0,05% · tính trên notional
 │       ├── data/             # bars, features
 │       ├── regime/
 │       ├── risk/
-│       ├── strategies/       # mean_reversion, squeeze_breakout, trend_pullback
+│       ├── strategies/       # mean_reversion, trend_pullback (squeeze_breakout: không triển khai)
 │       ├── exec/
 │       ├── watchdog/
 │       ├── ops/              # log, metric, alert (telegram), report

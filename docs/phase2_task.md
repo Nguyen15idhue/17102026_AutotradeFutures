@@ -1,7 +1,7 @@
 # PHASE 2 TASK — AI GATE (LỚP PHỦ QUYẾT)
 
 **Tài liệu triển khai chi tiết · Phase 2/3**
-Phiên bản: 1.0 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v1.6 §15.1
+Phiên bản: 1.1 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.0 §15.1
 
 ---
 
@@ -20,7 +20,7 @@ Phiên bản: 1.0 · Ngày: 17/11/2026 · Tham chiếu gốc: `docs/mvp-binance-
 Đây là chỗ hiểu sai nhiều nhất, nên nói ngay:
 
 - **Không phải bot AI dự đoán giá.** Nó không nhìn chart, không nói "BTC sẽ tăng".
-- **Không phải trigger.** Nó không bao giờ tạo ra lệnh. Tín hiệu vẫn do MR/Squeeze của phase 1 sinh ra.
+- **Không phải trigger.** Nó không bao giờ tạo ra lệnh. Tín hiệu vẫn do MR/Trend của phase 1 sinh ra.
 - **Không nằm trên hot path.** Nó chạy async 1–15 phút, kết quả được cache. Loop chính không bao giờ chờ nó.
 
 ### 0.3 AI gate là gì
@@ -424,3 +424,4 @@ Kết luận AI có ích nếu: expectancy nhóm B ≥ nhóm A (giảm size đú
 | Ngày | Phiên bản | Nội dung |
 |---|---|---|
 | 17/11/2026 | 1.0 | Tạo mới; chốt model GLM 5.3 Flash + DeepSeek V4 Flash, chi phí 2–7 USD/tháng |
+| 18/11/2026 | 1.1 | Đồng bộ spec v2.0: tín hiệu phase 1 sinh ra bởi MR/Trend (Squeeze đã huỷ) |

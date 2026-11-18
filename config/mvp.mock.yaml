@@ -1,0 +1,124 @@
+# config/mvp.mock.yaml — MVP v2.0 (mock tự dựng binance-demo-server)
+# Quy ước: file này KHÔNG chứa secret. Secret chỉ nằm trong .env.
+# Ngưỡng chiến lược là điểm khởi đầu có cơ sở, không phải "cấu hình vàng".
+# Đổi bất kỳ số nào ở đây phải qua walk-forward + ghi lý do (AGENTS §10).
+
+env: mock
+base_url: http://binance-demo-server:8080    # container dùng hostname nội bộ; 127.0.0.1:8081 chỉ là cổng debug
+ws_url: ws://binance-demo-server:8080/ws
+equity_base: 5000              # sổ ảo riêng để cùng thang đo % với live
+
+universe:
+  symbols: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT,
+            DOGEUSDT, ADAUSDT, AVAXUSDT, LINKUSDT, SUIUSDT]
+  min_quote_volume_24h: 100_000_000
+  max_spread_bps: 2
+
+timeframes:
+  signal: 15m                  # regime + MR
+  data: 1m                     # nguồn aggregate
+  context: 1h                  # filter phụ
+  trend_signal: 1h             # Trend Pullback
+  trend_context: 4h            # bối cảnh xu hướng lớn
+
+risk:
+  risk_per_trade: 0.005        # 0,5%/lệnh (mock)
+  max_leverage: 3
+  max_positions: 4             # live cũng 4 (quyết định 18/11/2026)
+  daily_loss_limit: 0.02
+  weekly_loss_limit: 0.04
+  max_drawdown: 0.06
+  portfolio_risk_max: 0.02     # tổng risk mở tối đa
+  max_correlated_risk: 0.02    # nhóm tương quan = return 1h 30 ngày corr > 0.8 với BTC
+  blackout_minutes: 45
+  stale_data_seconds: 3
+  funding_close_bps: 10        # không giữ lệnh qua snapshot nếu |funding| > 0,1%, trừ khi trailing lãi > 1×ATR
+  margin_usage_max: 0.60       # TK nhỏ: margin cạn trước risk cap
+  narrow_stop_warn_pct: 0.005  # cảnh báo mềm khi stop% < 0,5%
+
+regime:
+  atr_period: 14
+  adx_period: 14
+  bb_period: 20
+  bb_std: 2
+  bbw_lookback_days: 90        # 8640 nến 15m; thiếu mẫu -> bbw_pct = None -> UNKNOWN, cấm MR
+  range_lookback_days: 90      # percentile của range_24h/ATR (xem spec §6.2)
+  range_pct_max: 50            # RANGE: range_pct < 50
+  squeeze_range_pct_max: 30    # SQUEEZE: range_pct < 30
+  vol_lookback_days: 30        # vol_pct = percentile realized vol 1h
+  vol_pct_min: 20
+  vol_pct_max: 60
+  bbw_pct_min: 15              # LUẬT CỨNG: cấm MR khi bbw_pct < 15
+  squeeze_bbw_pct_max: 20
+  adx_range_max: 20
+  adx_trend_min: 22
+  hysteresis_bars: 3           # nhãn mới phải giữ 3 nến
+  cooldown_bars: 5             # sau khi đổi nhãn, 5 nến không đổi lại
+  crisis_confirm_bars: 1       # CRISIS vào ngay (trạng thái an toàn)
+  trend_dir_confirm_bars: 3    # trend_dir phải giữ 3 nến mới được dùng để vào lệnh
+  # crisis: spread > 3× trung bình 1h; > 5 thanh lý lớn/phút; |funding| > 0,1%; BTC giảm > 4%/15m
+  # (mỗi điều kiện kích hoạt độc lập; input thiếu -> bỏ qua + ghi reason)
+
+strategies:
+  allocation:                  # tỉ lệ của portfolio_risk_max; tổng = 1.0
+    mean_reversion: 0.5        # 50% × 2,0% = 1,0% -> 2 vị thế ở risk 0,5%
+    trend_pullback: 0.5        # 50% × 2,0% = 1,0% -> 2 vị thế
+    squeeze_breakout: 0.0      # HUỶ ở v2.0 (giữ nhãn SQUEEZE -> đứng ngoài)
+  max_positions_per_strategy: 2  # chặn 1 chiến lược chiếm hết slot
+  mean_reversion:
+    enabled: true
+    z_entry: 2.0
+    stop_atr: 1.2
+    tp: mid
+    time_stop_bars: 12
+    entry: post_only
+    ttl_bars: 2
+  squeeze_breakout:
+    enabled: false             # HUỶ 18/11/2026: giữ code chưa viết; nhãn SQUEEZE vẫn tồn tại
+  trend_pullback:
+    enabled: true
+    mode: live                 # live | shadow (shadow: chỉ ghi sổ ảo)
+    allow_short: true          # DUYỆT 18/11/2026 — rủi ro gap của short đã được chấp nhận
+    timeframe: 1h
+    context_timeframe: 4h
+    ema_fast: 50
+    ema_slow: 200
+    adx_min: 22
+    fib_min: 0.30
+    fib_max: 0.618
+    rsi_min: 40
+    rsi_max: 55
+    short_rsi_min: 45
+    short_rsi_max: 60
+    stop_atr: 1.5
+    trail_atr: 2.0
+    trail_after_atr: 1.5
+    time_stop_bars: 36
+    entry: market              # market tại open nến 1h kế tiếp (giữ mẫu, chấp nhận taker)
+    require_spread_bps_below: 2  # dùng lại guard spread của MR
+
+execution:
+  entry_ttl_bars: 2
+  sl_working_type: MARK_PRICE
+  price_protect: true
+  reconcile_seconds: 5
+  max_retries: 3
+  recv_window_ms: 5000
+  fee_bps_maker: 2
+  fee_bps_taker: 5
+  slippage_bps: 5
+  max_orders_per_day: 10       # mock; live 5
+
+dashboard:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
+  poll_ms: 1000
+  auth: basic
+  allowlist_commands: [pause, resume, flatten, stop]
+
+ops:
+  telegram_enabled: true
+  telegram_topic_id: null
+  log_level: INFO
+  db_path: data/bot.db
