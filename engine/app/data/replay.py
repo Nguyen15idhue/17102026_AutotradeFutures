@@ -31,6 +31,7 @@ from ..regime.detector import (
     RANGE_VOL_PCT_MIN,
     SQUEEZE_BBW_PCT_MAX,
     SQUEEZE_RANGE_PCT_MAX,
+    TREND_DIR_CONFIRM_BARS,
     RegimeMachine,
     classify,
     direction_for,
@@ -88,6 +89,10 @@ def params_sha256() -> str:
         "hysteresis_bars": HYSTERESIS_BARS,
         "cooldown_bars": COOLDOWN_BARS,
         "crisis_confirm_bars": CRISIS_CONFIRM_BARS,
+        "trend_dir_confirm_bars": TREND_DIR_CONFIRM_BARS,
+        # P1.2b: dinh dang canonical_line doi (them trend_dir) -> bump de report cu
+        # khong bi so sanh nham voi report moi.
+        "hash_format": 2,
     }
     return hashlib.sha256(json.dumps(p, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
@@ -96,13 +101,17 @@ def _f(x: float | None, nd: int = 10) -> str:
     return "-" if x is None else f"{x:.{nd}f}"
 
 
-def canonical_line(ts: int, label: str, conf: float, f: dict | None) -> str:
-    """1 dong hash co dinh dinh dang, khong dung repr float tran."""
+def canonical_line(ts: int, label: str, conf: float, f: dict | None, trend_dir: int = 0) -> str:
+    """1 dong hash co dinh dinh dang, khong dung repr float tran.
+
+    Format v2 (P1.2b): them `trend_dir` o cuoi. Doi format = doi hash -> params_sha256
+    cung bump `hash_format`, de khong ai so sanh report cu voi report moi.
+    """
     if f is None:
-        return f"{ts},{label},{conf:.4f},-,-,-,-,-,-"
+        return f"{ts},{label},{conf:.4f},-,-,-,-,-,-,{trend_dir}"
     return (
         f"{ts},{label},{conf:.4f},{_f(f['atr'])},{_f(f['adx'])},{_f(f['bbw'])},"
-        f"{_f(f.get('bbw_pct'))},{_f(f['z'])},{_f(f.get('vol_pct'))}"
+        f"{_f(f.get('bbw_pct'))},{_f(f['z'])},{_f(f.get('vol_pct'))},{trend_dir}"
     )
 
 
@@ -206,8 +215,10 @@ def run_bars(
         if prev_raw is not None and res.raw_label.value != prev_raw:
             raw_transitions += 1
         prev_label, prev_raw = res.label.value, res.raw_label.value
-        final_lines.append(canonical_line(ts, res.label.value, res.confidence, f))
-        raw_lines.append(canonical_line(ts, res.raw_label.value, conf, f))
+        final_lines.append(canonical_line(ts, res.label.value, res.confidence, f, res.trend_dir))
+        raw_lines.append(
+            canonical_line(ts, res.raw_label.value, conf, f, direction_for(f))
+        )
 
     start_ts = bars15[0]["open_time"] if bars15 else 0
     end_ts = bars15[-1]["open_time"] if bars15 else 0

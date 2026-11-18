@@ -55,7 +55,12 @@ def _share(counts: dict[str, int], label: RegimeLabel) -> float:
 
 def _window_hash(rows: list[dict]) -> str:
     return replay.hash_rows(
-        [replay.canonical_line(r["ts"], r["label"], r["confidence"], r["feature"]) for r in rows]
+        [
+            replay.canonical_line(
+                r["ts"], r["label"], r["confidence"], r["feature"], r.get("trend_dir", 0)
+            )
+            for r in rows
+        ]
     )
 
 

@@ -4,26 +4,26 @@
     "bars": 5761,
     "bbw_pct_all_none": true,
     "features": 5733,
-    "hash": "576e6743c527cb0546f3e69847387a2e968ec06de13be1d187c7696465f2f4c2",
+    "hash": "2869259ca673e864a6c2e06850571e8d0b1e9b4682fbb90a6f3a7a30307da047",
     "label_counts": {
       "CRISIS": 0,
       "RANGE": 0,
       "SQUEEZE": 0,
-      "TREND": 1363,
-      "UNKNOWN": 4398
+      "TREND": 3204,
+      "UNKNOWN": 2557
     }
   },
   "crash_day": {
     "bars": 96,
     "crisis_bars": 6,
     "date": "2026-02-06",
-    "hash": "71eb44c1486d80aa05935462509fa871693e8a13310532f0aa9f09bbc0418c23",
+    "hash": "eb5322a0c86eb99ef656f4e7b6b9a758a298852b43d537aec71894e17d975f4a",
     "label_counts": {
       "CRISIS": 6,
       "RANGE": 0,
       "SQUEEZE": 0,
-      "TREND": 3,
-      "UNKNOWN": 87
+      "TREND": 52,
+      "UNKNOWN": 38
     },
     "return_15m": -0.042454
   },
@@ -34,88 +34,88 @@
     "bbw_fallback_safe": true,
     "crash_has_crisis": true,
     "range_vs_trend_2x": true,
-    "range_week_dominant_nonunknown": true,
-    "transitions_reduced_50pct": true
+    "range_week_dominant_nonunknown": false,
+    "transitions_reduced_50pct": false
   },
   "gates_note": "A/B do kha nang phan biet cua classifier, khong do do pho bien cua RANGE; share_abs chi de tham khao",
   "history_start": "2025-01-01",
   "label_counts": {
     "CRISIS": 6,
-    "RANGE": 3148,
-    "SQUEEZE": 1359,
-    "TREND": 18328,
-    "UNKNOWN": 42823
+    "RANGE": 3140,
+    "SQUEEZE": 1354,
+    "TREND": 36561,
+    "UNKNOWN": 24603
   },
-  "params_sha256": "201a31090b27e4f2b92dab42564bdc4082085a558d2627c6e2aef546540c18d7",
+  "params_sha256": "2a680166cc7ddd8fed08ab0d08eee9d43d8208ed5c45f25033408470330adba5",
   "range_vs_trend_ratio": null,
   "range_week": {
     "end_ts": 1782949500000,
-    "hash": "33cbf5cb78e54f9c53c1fb92ca711d4424b68d7b922331783a1cd9c807b992c6",
+    "hash": "dad910ffd74e1f1a356052aaca6ef97a898be56327880a5c78da9642d5e0148b",
     "label_counts": {
       "CRISIS": 0,
-      "RANGE": 84,
+      "RANGE": 85,
       "SQUEEZE": 6,
-      "TREND": 74,
-      "UNKNOWN": 508
+      "TREND": 310,
+      "UNKNOWN": 271
     },
     "share_abs": {
-      "RANGE": 0.125,
+      "RANGE": 0.1265,
       "SQUEEZE": 0.0089,
-      "TREND": 0.1101
+      "TREND": 0.4613
     },
     "share_tradable": {
-      "RANGE": 0.5122,
-      "SQUEEZE": 0.0366,
-      "TREND": 0.4512
+      "RANGE": 0.212,
+      "SQUEEZE": 0.015,
+      "TREND": 0.7731
     },
     "start_date": "2026-06-25",
     "start_ts": 1782345600000,
     "tradable_counts": {
-      "RANGE": 84,
+      "RANGE": 85,
       "SQUEEZE": 6,
-      "TREND": 74
+      "TREND": 310
     }
   },
   "range_week_key": 1782345600000,
-  "raw_hash": "b92e3e60a62332f88c3850d475366fc304a4e00e9302370b3a1f79bc36bef3f5",
-  "raw_transitions": 4171,
-  "raw_transitions_per_day": 6.098,
-  "replay_hash": "576952eafb77036011448ba59c4a9294b625f93e01e99544b25b58df162ec2a3",
+  "raw_hash": "162827391209d0456891bb8cfc97f6a65de0ac23f701eb53823354e945813c85",
+  "raw_transitions": 5005,
+  "raw_transitions_per_day": 7.3173,
+  "replay_hash": "5ac2ad6cb87fcbf93de271662dbee486a54ec80d05a057ecdf2818821eda41a8",
   "start": "2026-06-01",
   "symbol": "BTCUSDT",
-  "transitions": 2090,
-  "transitions_per_day": 3.0556,
+  "transitions": 2706,
+  "transitions_per_day": 3.9561,
   "trend_week": {
-    "end_ts": 1781135100000,
-    "hash": "c4a88e613b238e3701ca23c6abaeea7ca6e1f533ddfeb82162bdd5f62dcdcd42",
+    "end_ts": 1780530300000,
+    "hash": "49fd0d399341320111e1189b3656fd9a4d233c84741bba639a3143c8c23095ae",
     "label_counts": {
       "CRISIS": 0,
       "RANGE": 0,
       "SQUEEZE": 0,
-      "TREND": 134,
-      "UNKNOWN": 538
+      "TREND": 213,
+      "UNKNOWN": 75
     },
     "share_abs": {
       "RANGE": 0.0,
       "SQUEEZE": 0.0,
-      "TREND": 0.1994
+      "TREND": 0.7396
     },
     "share_tradable": {
       "RANGE": 0.0,
       "SQUEEZE": 0.0,
       "TREND": 1.0
     },
-    "start_date": "2026-06-04",
-    "start_ts": 1780531200000,
+    "start_date": "2026-06-01",
+    "start_ts": 1780272000000,
     "tradable_counts": {
       "RANGE": 0,
       "SQUEEZE": 0,
-      "TREND": 134
+      "TREND": 213
     }
   },
-  "trend_week_key": 1780531200000,
+  "trend_week_key": 1779926400000,
   "weeks_analysed": 24,
   "window_bars": 16128,
-  "window_raw_transitions": 1088,
-  "window_transitions": 505
+  "window_raw_transitions": 1298,
+  "window_transitions": 660
 }

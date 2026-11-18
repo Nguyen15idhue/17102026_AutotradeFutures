@@ -276,7 +276,7 @@ Toàn bộ tính trên **nến đã đóng**, không bao giờ dùng nến đang
 ### Checklist test
 
 - [x] Unit test ATR/ADX/BB/z bằng dữ liệu tổng hợp pass — `engine/tests/test_features.py` (21 test: ATR/ADX Wilder, BB/z tính tay, pct_rank brute-force 10 điểm, không look-ahead bitwise)
-- [x] Replay 2 lần → cùng kết quả — `scripts/ps/p1.2-check.ps1 -Mode Replay`, hash `1986c4f9…9704d3` cho BTCUSDT 2026-08-01..11-01 (2 lần trùng)
+- [x] Replay 2 lần → cùng kết quả — `scripts/ps/p1.2-check.ps1 -Mode Replay`, hash `1986c4f9…9704d3` cho BTCUSDT 2026-08-01..11-01 (2 lần trùng) *(hash trước P1.2b; hash sau P1.2b: `55530fb1…4e6ebf`)*
 - [x] Ngày crash lịch sử → nhãn CRISIS — 2026-02-06, nến giảm −4,245%, 6 nến `CRISIS` (`docs/reports/p1.2-spotcheck.json`)
 - [x] Tuần sideway → RANGE trội trong nhãn tradable — tuần 2026-06-25: RANGE 51,2% / TREND 45,1% / SQUEEZE 3,7% (loại UNKNOWN); RANGE ở tuần TREND mạnh nhất = 0% → cổng A/B đạt
 - [x] Percentile BBW không bị lỗi khi chưa đủ 90 ngày dữ liệu (fallback) — test 8639 mẫu → `None`; 8640 mẫu → có giá trị; cửa sổ 60 ngày: 100% `bbw_pct=None`, 0 CRISIS, không crash
@@ -290,7 +290,7 @@ Toàn bộ tính trên **nến đã đóng**, không bao giờ dùng nến đang
 | Aggregate 1m→15m/1h | ✅ | `engine/app/data/bars.py` + 14 test (`test_bars.py`): cửa sổ thiếu bị bỏ, gap báo, nến chưa đóng bị loại | 18/11/2026 |
 | Feature engine + unit test | ✅ | `features.py` single-pass; 21 test; `vol_pct` = percentile realized vol 1h (không phải volume); `range_pct` percentile 90 ngày | 18/11/2026 |
 | Regime + hysteresis | ✅ | `engine/app/regime/`; 25 test; 3 nến + cooldown 5, CRISIS 1 nến; transitions 404 vs raw 715 (giảm 43,5%) trên 168 ngày | 18/11/2026 |
-| Replay tất định | ✅ | hash `1986c4f92d192327037097cec026334afe978f61ad165a6ecd1a4168659704d3`; `params_sha256=201a3109…40c18d7`; 2 lần chạy giống nhau | 18/11/2026 |
+| Replay tất định | ✅ | hash `1986c4f92d192327037097cec026334afe978f61ad165a6ecd1a4168659704d3`; `params_sha256=201a3109…40c18d7`; 2 lần chạy giống nhau. **Trước P1.2b** — hash sau P1.2b: `55530fb14020ab7e5920b2faec16ce9e4171dd16907d6c77f6e02ce8354e6ebf`, `params_sha256=2a680166…30adba5` | 18/11/2026 |
 
 ### Ghi chú
 
@@ -360,7 +360,7 @@ Vì sao tách khỏi P1.2: P1.2 đã pass cổng theo phạm vi cũ (chỉ cần
 | Streak 3 nến + reset khi đổi chiều | ✅ | `RegimeMachine._update_direction`, `TREND_DIR_CONFIRM_BARS=3`; `trend_dir=0` ngoài TREND và khi chưa đủ 3 nến; test không look-ahead qua `run_bars` | 18/11/2026 |
 | Khung 4h aggregate | ✅ | `bars.py` thêm `4h` (240 nến 1m, `NEED=240`) + 4 test mới trong `test_bars.py` (OHLCV, cửa sổ thiếu bị bỏ, gap báo, 1h/15m không đổi) — 18 test pass | 18/11/2026 |
 | Migration cột `regime.trend_dir` | ✅ | `store._migrate()` (PRAGMA → ALTER, idempotent) + persist ghi/đọc; 2 test mới (DB cũ giữ dữ liệu, round-trip `trend_dir`), 8 test persist pass | 18/11/2026 |
-| Hash replay mới được ghi lại | ⬜ Chưa | | |
+| Hash replay mới được ghi lại | ✅ | `replay.canonical_line` format v2 (thêm `trend_dir`), `params_sha256` bump `hash_format=2`; replay 2 lần cùng hash `55530fb14020ab7e5920b2faec16ce9e4171dd16907d6c77f6e02ce8354e6ebf`, `params=2a680166…30adba5`; report `docs/reports/p1.2-spotcheck.json` cập nhật | 18/11/2026 |
 | CI job `engine` | ⬜ Chưa | | |
 
 ### Ghi chú
@@ -368,6 +368,11 @@ Vì sao tách khỏi P1.2: P1.2 đã pass cổng theo phạm vi cũ (chỉ cần
 - `trend_dir` là **field**, không phải nhãn thứ 6 → giữ nguyên schema, dashboard, mapping chiến lược.
 - **Luật khớp EMA trên 1h và `direction_conflict` kiểm ở tầng signal (P1.4/P1.6)**, không ở detector: detector chạy trên 15m nên không tự thấy 1h. Detector chỉ chịu trách nhiệm "hướng 15m + độ bền 3 nến"; strategy đọc thêm 1h và bỏ tín hiệu nếu lệch.
 - Không đổi ngưỡng nào của P1.2 trong bước này. Nếu thấy cần đổi → dừng, đó là thay đổi chiến lược, phải walk-forward (AGENTS §10).
+- **Hai cổng spot-check P1.2 chuyển từ đạt → không đạt sau P1.2b (phát hiện 18/11/2026, cần quyết định):**
+  - `range_week_dominant_nonunknown`: tuần 2026-06-25 trước đây RANGE 51,2% / TREND 45,1% (nhãn tradable); sau P1.2b còn RANGE 21,2% / TREND 77,3% — vì 18.233 nến down-trend trước đây là `UNKNOWN` nay là `TREND`.
+  - `transitions_reduced_50pct`: 660/1.298 = **50,85%** (ngưỡng ≤ 50%), trước P1.2b là 505/1.088 = 46,4%.
+  - Nguyên nhân đã chứng minh bằng chạy đối chứng: hạ `direction_for` về hành vi cũ (chỉ up-trend = TREND) → **5/5 cổng đạt lại**. Vậy đây là hệ quả của việc nhận diện trend hai chiều, không phải lỗi hash/migration.
+  - Chưa sửa ngưỡng/cổng vì cả hai đều là "luật" (AGENTS §11). Cần user chọn: giữ nguyên và chấp nhận 3/5, hay định nghĩa lại cổng A/D cho phù hợp nhãn TREND hai chiều, hay siết điều kiện TREND (phải walk-forward).
 
 ---
 
@@ -745,7 +750,7 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 |---|---|---|---|---|
 | P1.0 | Xác minh môi trường | ⬜ Chưa | | |
 | P1.1 | Exchange adapter | ⬜ Chưa | | |
-| P1.2 | Data + Regime | ✅ Xong | 18/11/2026 | 74 test mới; replay hash tất định; 5/5 cổng spot-check; image engine build lại + 3 service healthy |
+| P1.2 | Data + Regime | ✅ Xong | 18/11/2026 | 74 test mới; replay hash tất định; **5/5 cổng spot-check trước P1.2b — sau P1.2b còn 3/5** (xem Ghi chú P1.2b); image engine build lại + 3 service healthy |
 | P1.2b | `trend_dir` + khung 4h | ⬜ Chưa | | Bổ sung v2.0 cho Trend short; xem mục P1.2b |
 | P1.3 | Risk + Executor | ⬜ Chưa | | |
 | P1.4 | MR + backtest | ⬜ Chưa | | |

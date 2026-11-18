@@ -67,11 +67,20 @@ def test_report_json_is_stable_and_written_same(tmp_path):
 def test_canonical_line_formats_none_and_floats():
     f = {"atr": 1.0, "adx": 2.0, "bbw": 0.25, "bbw_pct": None, "z": -1.5, "vol_pct": 50.0}
     line = R.canonical_line(123, "RANGE", 1.0, f)
-    ts, label, conf, atr, adx, bbw, bbwp, z, volp = line.split(",")
+    ts, label, conf, atr, adx, bbw, bbwp, z, volp, tdir = line.split(",")
     assert (ts, label, conf) == ("123", "RANGE", "1.0000")
     assert (atr, adx, bbw) == ("1.0000000000", "2.0000000000", "0.2500000000")
     assert bbwp == "-" and z == "-1.5000000000" and volp == "50.0000000000"
-    assert R.canonical_line(1, "UNKNOWN", 0.0, None) == "1,UNKNOWN,0.0000,-,-,-,-,-,-"
+    assert tdir == "0"
+    assert R.canonical_line(1, "UNKNOWN", 0.0, None) == "1,UNKNOWN,0.0000,-,-,-,-,-,-,0"
+    assert R.canonical_line(1, "TREND", 1.0, None, -1) == "1,TREND,1.0000,-,-,-,-,-,-,-1"
+
+
+def test_hash_format_version_bumped():
+    """Doi dinh dang hash phai bump hash_format de report cu khong bi so sanh nham."""
+    assert R.params_sha256()  # co gia tri
+    src = inspect.getsource(R.params_sha256)
+    assert '"hash_format": 2' in src
 
 
 def test_counts_cover_all_bars_and_transitions_bounded():
