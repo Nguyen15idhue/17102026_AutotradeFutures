@@ -431,9 +431,9 @@ Make-before-break nghĩa là: đặt SL mới **trước**, xóa SL cũ **sau**.
 |---|---|---|---|
 | Config loader | ✅ | `engine/app/config.py` đọc `CONFIG_PATH`, validate cứng (allocation=1.0, risk ≤0,5%, live ≤0,25%, margin ≤60%, slot/chiến lược, secret cấm trong YAML); 12 test `test_config.py` pass, đọc đúng `config/mvp.{mock,live}.yaml` | 18/11/2026 |
 | Schema: positions + signals/equity/commands | ✅ | `store.py` mở rộng `positions` (strategy_id, side, sl, tp, risk_usd, opened_ms, state) + 3 bảng mới; migration idempotent; `test_schema_p13.py` 3 test (DB cũ giữ dữ liệu, round-trip bảng mới, migrate bản sao `data/p1.2.db`) — 143 test tổng pass | 18/11/2026 |
-| Risk engine đủ limit | ⬜ Chưa | | |
-| Slot/chiến lược + correlated cap | ⬜ Chưa | | |
-| Sizing + rounding + minNotional reject | ⬜ Chưa | | |
+| Risk engine đủ limit | ✅ | `risk/limits.py` fail-fast 18 lý do, `risk/types.py` thuần dữ liệu; 19 test `test_risk_limits.py` (mỗi lý do 1 ca + thứ tự) | 18/11/2026 |
+| Slot/chiến lược + correlated cap | ✅ | `slot_global`, `slot_strategy`, `correlated_risk` (fail-closed nhóm `""`), `already_open`; test cùng nhóm chặn / khác nhóm cho qua | 18/11/2026 |
+| Sizing + rounding + minNotional reject | ✅ | `risk/sizing.py` floor step + `round_price` tick; `meta.risk_usd` không vượt risk/lệnh; dưới minNotional → **huỷ**, không tăng size; 13 test `test_risk_sizing.py` | 18/11/2026 |
 | Executor SL/TP/trailing (cả short) | ⬜ Chưa | | |
 | Kill switch 3 cấp | ⬜ Chưa | | |
 | 11 test injection pass | ⬜ Chưa | | |
