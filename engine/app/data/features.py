@@ -1,31 +1,42 @@
-"""Feature engine P1.2 theo spec §6.2. Nhan qua, chi dung du lieu <= T.
+"""Feature engine P1.2 theo spec §6.2. Chi dung du lieu <= T (khong look-ahead).
 
-ATR/ADX: Wilder RMA(14). BB: SMA20 +- 2*STDEV. bbw_pct: hang percentile cua bbw
-trong 90 ngay (8640 nen 15m); thieu mau -> None (fallback: khong trade).
-vol_pct: percentile volume trong 30 ngay (2880 nen). range_24h: 96 nen 15m.
+- ATR(14)/ADX(14): Wilder RMA.
+- BB(20, 2σ): SMA + STDEV population (/n).
+- bbw_pct: hang percentile cua bbw trong 90 ngay (8640 nen 15m), CHI mau qua khu;
+  thieu mau -> None (fallback: khong trade) theo quyet dinh P1.2.
+- vol_pct: percentile cua realized vol 1h (sqrt tong binh phuong 4 log-return 15m)
+  trong 30 ngay (2880 nen) — spec §6.2, KHONG phai percentile volume.
+- range_24h: 96 nen 15m; oi/funding: optional, thieu -> None.
+
+Tat ca tinh 1 luot (O(n log n) cho percentile) de replay ~100 ngay khong cho.
 """
 
 from __future__ import annotations
 
+import bisect
 import math
+from collections import deque
 
 BBW_LOOKBACK = 90 * 96  # 8640 nen 15m
 VOL_LOOKBACK = 30 * 96  # 2880 nen
 RANGE_N = 96
-MIN_BBW_SAMPLE = 100  # duoi nguong nay tra None thay vi so ao
+RV_N = 4  # realized vol 1h = 4 nen 15m
+BBW_MIN_SAMPLES = BBW_LOOKBACK  # du 90 ngay moi co percentile (fallback = None)
+VOL_MIN_SAMPLES = VOL_LOOKBACK
+MIN_BBW_SAMPLE = 20  # so mau toi thieu de bbw ton tai (chi dung trong test cu)
 
 
 def sma(xs: list[float], n: int, end: int) -> float | None:
     if end + 1 < n:
         return None
-    return sum(xs[end - n + 1: end + 1]) / n
+    return sum(xs[end - n + 1 : end + 1]) / n
 
 
 def stdev(xs: list[float], n: int, end: int) -> float | None:
     m = sma(xs, n, end)
     if m is None:
         return None
-    seg = xs[end - n + 1: end + 1]
+    seg = xs[end - n + 1 : end + 1]
     return math.sqrt(sum((x - m) ** 2 for x in seg) / n)
 
 
@@ -47,15 +58,14 @@ def _rma(prev: float, x: float, n: int) -> float:
     return (prev * (n - 1) + x) / n
 
 
-def atr_series(h: list[float], low: list[float], c: list[float], n: int = 14
-               ) -> list[float | None]:
+def atr_series(h: list[float], low: list[float], c: list[float], n: int = 14) -> list[float | None]:
     out: list[float | None] = [None] * len(c)
     if len(c) <= n:
         return out
     trs = [0.0] * len(c)
     for i in range(1, len(c)):
         trs[i] = max(h[i] - low[i], abs(h[i] - c[i - 1]), abs(low[i] - c[i - 1]))
-    atr = sum(trs[1: n + 1]) / n
+    atr = sum(trs[1 : n + 1]) / n
     out[n] = atr
     for i in range(n + 1, len(c)):
         atr = _rma(atr, trs[i], n)
@@ -63,8 +73,7 @@ def atr_series(h: list[float], low: list[float], c: list[float], n: int = 14
     return out
 
 
-def adx_series(h: list[float], low: list[float], c: list[float], n: int = 14
-               ) -> list[float | None]:
+def adx_series(h: list[float], low: list[float], c: list[float], n: int = 14) -> list[float | None]:
     out: list[float | None] = [None] * len(c)
     if len(c) < 2 * n + 1:
         return out
@@ -74,8 +83,8 @@ def adx_series(h: list[float], low: list[float], c: list[float], n: int = 14
         pdm[i] = up if up > dn and up > 0 else 0.0
         mdm[i] = dn if dn > up and dn > 0 else 0.0
         trs[i] = max(h[i] - low[i], abs(h[i] - c[i - 1]), abs(low[i] - c[i - 1]))
-    str_ = sum(trs[1: n + 1])
-    sp, sm = sum(pdm[1: n + 1]), sum(mdm[1: n + 1])
+    str_ = sum(trs[1 : n + 1])
+    sp, sm = sum(pdm[1 : n + 1]), sum(mdm[1 : n + 1])
     dxs: list[float] = []
     for i in range(n + 1, len(c)):
         if i > n + 1:
@@ -95,11 +104,15 @@ def adx_series(h: list[float], low: list[float], c: list[float], n: int = 14
 
 
 def pct_rank(window: list[float], x: float) -> float:
-    """Hang percentile 0-100 cua x trong window (chi tinh tren qua khu)."""
+    """Hang percentile 0-100 cua x trong window (empirical CDF, x <= v)."""
     if not window:
         return 50.0
     le = sum(1 for v in window if v <= x)
     return 100.0 * le / len(window)
+
+
+def _pct_rank_sorted(sorted_vals: list[float], x: float) -> float:
+    return 100.0 * bisect.bisect_right(sorted_vals, x) / len(sorted_vals)
 
 
 def allow_mean_reversion(bbw_pct: float | None) -> bool:
@@ -107,63 +120,192 @@ def allow_mean_reversion(bbw_pct: float | None) -> bool:
     return bbw_pct is not None and bbw_pct > 15
 
 
-def compute_at(bars: list[dict], i: int) -> dict | None:
-    """Feature tai nen i, chi dung bars[<=i]. None neu thieu gap/lich su."""
-    if i < 0 or not bars[i].get("closed"):
+def realized_vol_1h(closes: list[float], i: int, n: int = RV_N) -> float | None:
+    """sqrt(tong binh phuong n log-return 15m ket thuc tai i). i < n -> None."""
+    if i < n:
         return None
-    # Gap: moc mo phai lien tuc 15m, neu khong -> bo (warning o tren goi)
-    if i > 0 and bars[i]["open_time"] - bars[i - 1]["open_time"] != 15 * 60_000:
+    s = 0.0
+    for j in range(i - n + 1, i + 1):
+        if closes[j - 1] <= 0 or closes[j] <= 0:
+            return None
+        r = math.log(closes[j] / closes[j - 1])
+        s += r * r
+    return math.sqrt(s)
+
+
+def funding_from_premium(payload: dict) -> float | None:
+    """lastFundingRate tu /fapi/v1/premiumIndex (string)."""
+    v = payload.get("lastFundingRate")
+    try:
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
         return None
-    if i < 19:  # chua du BB20
+
+
+def oi_from_payload(payload: dict) -> float | None:
+    """openInterest tu /fapi/v1/openInterest (string)."""
+    v = payload.get("openInterest")
+    try:
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
         return None
-    closes = [b["c"] for b in bars[: i + 1]]
-    highs = [b["h"] for b in bars[: i + 1]]
-    lows = [b["l"] for b in bars[: i + 1]]
-    vols = [b["v"] for b in bars[: i + 1]]
-    mid = sma(closes, 20, i)
-    sd = stdev(closes, 20, i)
-    assert mid is not None and sd is not None
-    if sd == 0:
-        return None
+
+
+def gap_boundaries(bars: list[dict]) -> list[int]:
+    """Chi so i ma bars[i] khong noi tiep bars[i-1] (15m)."""
+    out = []
+    for i in range(1, len(bars)):
+        if bars[i]["open_time"] - bars[i - 1]["open_time"] != 15 * 60_000:
+            out.append(i)
+    return out
+
+
+def _rolling_mean_std(closes: list[float], n: int) -> tuple[list[float | None], list[float | None]]:
+    """SMA + STDEV population bang cua so truot (O(n))."""
+    m: list[float | None] = [None] * len(closes)
+    s: list[float | None] = [None] * len(closes)
+    sum_x = sum_x2 = 0.0
+    for i, c in enumerate(closes):
+        sum_x += c
+        sum_x2 += c * c
+        if i >= n:
+            old = closes[i - n]
+            sum_x -= old
+            sum_x2 -= old * old
+        if i + 1 >= n:
+            mean = sum_x / n
+            var = max(0.0, sum_x2 / n - mean * mean)  # population, /n
+            m[i] = mean
+            s[i] = math.sqrt(var)
+    return m, s
+
+
+class _PctWindow:
+    """Cua so gia tri qua khu + do phan vi bang bisect (O(log n) tra cuu)."""
+
+    def __init__(self, lookback: int) -> None:
+        self.lookback = lookback
+        self._q: deque[tuple[int, float]] = deque()
+        self._sorted: list[float] = []
+
+    def add(self, idx: int, value: float | None) -> None:
+        if value is not None:
+            self._q.append((idx, value))
+            bisect.insort(self._sorted, value)
+
+    def drop_before(self, idx: int) -> None:
+        # idx: chi so nho nhat con duoc giu
+        while self._q and self._q[0][0] < idx:
+            _, v = self._q.popleft()
+            pos = bisect.bisect_left(self._sorted, v)
+            if pos < len(self._sorted) and self._sorted[pos] == v:
+                self._sorted.pop(pos)
+
+    def pct(self, value: float, min_samples: int) -> float | None:
+        if len(self._sorted) < min_samples:
+            return None
+        return _pct_rank_sorted(self._sorted, value)
+
+
+def compute_series(
+    bars: list[dict],
+    *,
+    bbw_min_samples: int = BBW_MIN_SAMPLES,
+    vol_min_samples: int = VOL_MIN_SAMPLES,
+    oi: dict[int, float] | None = None,
+    funding: dict[int, float] | None = None,
+) -> list[dict | None]:
+    """Feature cho tung nen 15m da dong; None neu thieu du lieu/cua so bi gap."""
+    n = len(bars)
+    if n == 0:
+        return []
+    closes = [float(b["c"]) for b in bars]
+    highs = [float(b["h"]) for b in bars]
+    lows = [float(b["l"]) for b in bars]
     atr_s = atr_series(highs, lows, closes)
     adx_s = adx_series(highs, lows, closes)
-    atr, adx = atr_s[i], adx_s[i]
-    if atr is None or adx is None or atr == 0:
+    ema50_s = ema_series(closes, 50)
+    ema200_s = ema_series(closes, 200)
+    mid_s, sd_s = _rolling_mean_std(closes, 20)
+
+    bbw: list[float | None] = [None] * n
+    rv: list[float | None] = [None] * n
+    for i in range(n):
+        mid, sd = mid_s[i], sd_s[i]
+        if mid and sd:
+            bbw[i] = 4 * sd / mid  # (up-dn)/mid voi up-dn = 4σ
+        rv[i] = realized_vol_1h(closes, i)
+
+    bbw_win, vol_win = _PctWindow(BBW_LOOKBACK), _PctWindow(VOL_LOOKBACK)
+    out: list[dict | None] = [None] * n
+    for i in range(n):
+        # cua so phan vi: chi mau QUA KHU (j < i)
+        if i > 0:
+            bbw_win.add(i - 1, bbw[i - 1])
+            vol_win.add(i - 1, rv[i - 1])
+        bbw_win.drop_before(i - BBW_LOOKBACK)
+        vol_win.drop_before(i - VOL_LOOKBACK)
+
+        if not bars[i].get("closed"):
+            continue
+        # cua so BB20 phai lien tuc: 20 nen 15m gan nhat khong duoc co gap
+        if i < 19 or (i > 0 and bars[i]["open_time"] - bars[i - 1]["open_time"] != 15 * 60_000):
+            continue
+        contiguous = all(
+            bars[j]["open_time"] - bars[j - 1]["open_time"] == 15 * 60_000
+            for j in range(i - 18, i + 1)
+        )
+        if not contiguous:
+            continue
+        mid, sd, atr, adx = mid_s[i], sd_s[i], atr_s[i], adx_s[i]
+        if mid is None or sd is None or sd == 0 or atr is None or adx is None or atr == 0:
+            continue
+        up, dn = mid + 2 * sd, mid - 2 * sd
+        cur_bbw = 4 * sd / mid
+        cur_rv = rv[i]
+        bbw_pct = bbw_win.pct(cur_bbw, bbw_min_samples)
+        vol_pct = vol_win.pct(cur_rv, vol_min_samples) if cur_rv is not None else None
+        seg = bars[max(0, i - RANGE_N + 1) : i + 1]
+        hi, lo = max(b["h"] for b in seg), min(b["l"] for b in seg)
+        span = (hi - lo) or 1.0
+        warmup = []
+        if bbw_pct is None:
+            warmup.append("bbw_pct")
+        if vol_pct is None:
+            warmup.append("vol_pct")
+        if ema50_s[i] is None:
+            warmup.append("ema50")
+        if ema200_s[i] is None:
+            warmup.append("ema200")
+        ts = bars[i]["open_time"]
+        out[i] = {
+            "ts": ts,
+            "close": closes[i],
+            "atr": atr,
+            "adx": adx,
+            "bb_mid": mid,
+            "bb_up": up,
+            "bb_dn": dn,
+            "bb_sd": sd,
+            "bbw": cur_bbw,
+            "bbw_pct": bbw_pct,
+            "z": (closes[i] - mid) / sd,
+            "vol_pct": vol_pct,
+            "rv_1h": cur_rv,
+            "range_24h": hi - lo,
+            "range_pos": (closes[i] - lo) / span,
+            "ema50": ema50_s[i],
+            "ema200": ema200_s[i],
+            "oi": (oi or {}).get(ts),
+            "funding": (funding or {}).get(ts),
+            "allow_mr": allow_mean_reversion(bbw_pct),
+            "warmup": warmup,
+        }
+    return out
+
+
+def compute_at(bars: list[dict], i: int) -> dict | None:
+    """Wrapper cho test: feature tai nen i, chi dung bars[<=i]."""
+    if i < 0 or i >= len(bars):
         return None
-    up, dn = mid + 2 * sd, mid - 2 * sd
-    bbw = (up - dn) / mid if mid else 0.0
-    z = (closes[i] - mid) / sd
-    # Percentile chi tren qua khu (khong gom i)
-    past_bbw: list[float] = []
-    for j in range(max(0, i - BBW_LOOKBACK), i):
-        m2 = sma(closes, 20, j)
-        s2 = stdev(closes, 20, j)
-        if m2 and s2:
-            past_bbw.append(4 * s2 / m2)
-    bbw_pct = pct_rank(past_bbw, bbw) if len(past_bbw) >= MIN_BBW_SAMPLE else None
-    past_v = vols[max(0, i - VOL_LOOKBACK): i]
-    vol_pct = pct_rank(past_v, vols[i]) if past_v else 50.0
-    seg = bars[max(0, i - RANGE_N + 1): i + 1]
-    hi, lo = max(b["h"] for b in seg), min(b["l"] for b in seg)
-    rng = hi - lo
-    span = (hi - lo) or 1.0
-    ema50 = ema_series(closes, 50)
-    ema200 = ema_series(closes, 200)
-    return {
-        "ts": bars[i]["open_time"],
-        "close": closes[i],
-        "atr": atr,
-        "adx": adx,
-        "bb_mid": mid,
-        "bb_up": up,
-        "bb_dn": dn,
-        "bbw": bbw,
-        "bbw_pct": bbw_pct,
-        "z": z,
-        "vol_pct": vol_pct,
-        "range_24h": rng,
-        "range_pos": (closes[i] - lo) / span,
-        "ema50": ema50[i],
-        "ema200": ema200[i],
-        "allow_mr": allow_mean_reversion(bbw_pct),
-    }
+    return compute_series(bars[: i + 1])[i]
