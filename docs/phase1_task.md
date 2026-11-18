@@ -436,7 +436,7 @@ Make-before-break nghĩa là: đặt SL mới **trước**, xóa SL cũ **sau**.
 | Sizing + rounding + minNotional reject | ✅ | `risk/sizing.py` floor step + `round_price` tick; `meta.risk_usd` không vượt risk/lệnh; dưới minNotional → **huỷ**, không tăng size; 13 test `test_risk_sizing.py` | 18/11/2026 |
 | Executor SL/TP/trailing (cả short) | ✅ | Thứ tự risk → place → fetch fill → SL (`STOP_MARKET closePosition`, short = BUY stop trên giá) → TP chỉ MR; SL trong <300ms sau fill (đo monotonic); trailing make-before-break chứng minh `place` trước `cancel`; cancel fail → HALT; 11 test `test_executor.py` | 18/11/2026 |
 | Trailing + recovery | ✅ | `trail()` đặt SL mới trước rồi cancel cũ, cập nhật `positions.sl/sl_id`; `close()` market `reduceOnly=true` → state CLOSED; `recovery.recover()` đặt lại SL thiếu, DB/exchange lệch → HALT + incident; 8 test `test_recovery.py` | 18/11/2026 |
-| Kill switch 3 cấp | ⬜ Chưa | | |
+| Kill switch 3 cấp | ✅ | `ops/commands.py` 4 action (pause/resume/flatten/stop), action lạ → `REJECTED` + incident; pause chặn entry (`paused` trong risk); flatten đóng hết; stop set `halted=1`; ack `done_ms`; 6 test `test_killswitch.py`, đo < 2s | 18/11/2026 |
 | 11 test injection pass | ⬜ Chưa | | |
 
 ### Ghi chú

@@ -29,16 +29,18 @@ class FakeRest:
     def get(self, path, params=None, signed=True, max_tries=4):
         self.calls.append(("GET", path, dict(params or {}), time.monotonic()))
         if path == "/fapi/v1/exchangeInfo":
+            syms = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "S0USDT", "S1USDT", "S2USDT"]
             return {
                 "symbols": [
                     {
-                        "symbol": "BTCUSDT",
+                        "symbol": s,
                         "filters": [
                             {"filterType": "PRICE_FILTER", "tickSize": "0.10"},
                             {"filterType": "LOT_SIZE", "stepSize": "0.001"},
                             {"filterType": "MIN_NOTIONAL", "notional": "5"},
                         ],
                     }
+                    for s in syms
                 ]
             }
         if path == "/fapi/v1/order":

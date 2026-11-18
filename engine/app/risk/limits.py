@@ -10,6 +10,7 @@ from .sizing import plan
 from .types import OrderRequest, RiskDecision, RiskInputs
 
 REASON_HALTED = "halted"
+REASON_PAUSED = "paused"
 REASON_STALE = "stale_data"
 REASON_CRISIS = "crisis"
 REASON_BLACKOUT = "blackout"
@@ -27,6 +28,7 @@ REASON_MARGIN = "margin_cap"
 
 REASONS = (
     REASON_HALTED,
+    REASON_PAUSED,
     REASON_STALE,
     REASON_CRISIS,
     REASON_BLACKOUT,
@@ -55,6 +57,8 @@ def check(req: OrderRequest, inp: RiskInputs) -> RiskDecision:
     """Kiem toan bo gioi han. Tra ve RiskDecision(ok=True) kem qty khi qua het."""
     if inp.halted:
         return RiskDecision(False, REASON_HALTED)
+    if inp.paused:
+        return RiskDecision(False, REASON_PAUSED)
     if (
         inp.last_market_ms is None
         or inp.now_ms - inp.last_market_ms > inp.stale_data_seconds * 1000

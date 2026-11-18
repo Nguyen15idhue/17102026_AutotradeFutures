@@ -133,6 +133,7 @@ class Executor:
             daily_loss_limit=r.daily_loss_limit,
             weekly_loss_limit=r.weekly_loss_limit,
             max_drawdown=r.max_drawdown,
+            paused=self._state("paused", "0") == "1",
         )
 
     # -- mo lenh --------------------------------------------------------------

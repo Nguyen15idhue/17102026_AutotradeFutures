@@ -69,6 +69,7 @@ class RiskInputs:
     daily_loss_limit: float
     weekly_loss_limit: float
     max_drawdown: float
+    paused: bool = False
 
 
 @dataclass(frozen=True)
