@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.16 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
+Phiên bản: 1.17 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
 
 ---
 
@@ -790,6 +790,37 @@ User duyệt: **chấp nhận rủi ro cao hơn, thử cả 5x** (chỉ trong ng
 - Đây là **beta + long-biased**, không phải alpha thị trường trung tính: thắng nhờ mua capitulation trong thị trường tăng. Nếu crypto vào bear dài (như 2018), chiến lược chưa được kiểm chứng (2020-2022 vẫn có nhiều sóng tăng).
 - Trước khi dùng tiền thật: **paper 4–8 tuần** với đúng tham số, và giới hạn cứng: risk ≤1%/lệnh, tổng exposure ≤3x, kill switch khi DD ngày ≥3%.
 
+### P1.4e — Các test có tuân thủ risk engine không? (19/11/2026)
+
+Câu hỏi của user: kết quả 2024→nay lời/lỗ thế nào, có bỏ qua risk engine nên mới "cháy" không.
+
+**Phân loại từng lần chạy:**
+
+| Lần chạy | Có qua risk engine? | Kết quả |
+|---|---|---|
+| MR+Trend dev 2024-12→2026-11 | sizing + caps đầy đủ; **DD halt TẮT có chủ ý** | −3.727,78 USD, DD 74,8% |
+| MR+Trend 2024-01→2026-11 | như trên | **−4.339,28 USD**, DD 87,2%, 4.136 lệnh |
+| MR+Trend 2024-01→2026-11, **bật DD halt** | đầy đủ | **−225,25 USD (−4,5%)**, DD 6,26%, halt 2024-04-23 |
+| funding-long 5x (`wide_lab`) | **KHÔNG** — mô hình vector hoá, không stop/cap | "cháy" 82–100 ngày vượt ngưỡng thanh lý |
+| funding-long qua risk engine 2024-01→2026-11 | đầy đủ | +258,00 USD (+5,2% tổng ≈ 1,79%/năm), DD 2,52%, gross tối đa 26% equity |
+| funding-long thr 20%·7 ngày qua risk engine | đầy đủ | +402,63 USD (2,77%/năm), DD 4,28% |
+
+**Giải thích "cháy":**
+
+1. Con số DD 87% của MR+Trend xảy ra vì **DD halt bị tắt** (đã ghi trong doc từ P1.4). Đây là quyết định phục vụ đo lường: nếu bật halt ở 6% thì cổng "Max DD < 8%" không bao giờ có thể fail, và không còn dữ liệu OOS. Bật halt thì risk engine dừng đúng ở −4,5% (23/04/2024) — **risk engine hoạt động đúng**.
+2. Con số "thanh lý 5x" **không phải** kết quả của risk engine. `wide_lab`/`funding_check` là mô hình nghiên cứu vector hoá: mỗi vị thế 1/5 gross, không stop, không cap, không halt. Nó chỉ trả lời "nếu dùng 5x thì khoảng cách thanh lý là bao nhiêu".
+3. Khi chạy funding-long **qua** risk engine (0,5% risk, tối đa 2 vị thế, margin 60%, 3x, daily/weekly/DD halt), kết quả chỉ **+1,79%/năm** — vì gross tối đa chỉ 26% equity. Không có cháy, nhưng cũng không có lãi đáng kể.
+
+**Toán học ở 300 USD (live):**
+
+- Risk 0,25% × 300 = **0,75 USD/lệnh**. Stop 12% → notional ~6 USD → **dưới minNotional** của BTC (50), ETH/LINK (20) ⇒ lệnh bị từ chối.
+- Muốn vào BTC với stop 12% phải có risk ≥ 6 USD = **2%/lệnh** ở tài khoản 300 USD.
+- Ở risk 2%/lệnh, kết quả funding-long xấp xỉ ×4 mức 0,5% ⇒ ~7%/năm ≈ **21 USD/năm**, DD ~10%.
+- Tăng đòn bẩy không giúp vì size tính theo risk; đòn bẩy chỉ là trần, không phải hệ số nhân lợi nhuận. Muốn lãi tuyệt đối lớn hơn chỉ có: tăng vốn, tăng risk/lệnh (chấp nhận DD lớn), hoặc tăng số vị thế đồng thời (bỏ cap 2/chiến lược).
+
+**Trạng thái:** config live vẫn `max_leverage: 3`, `max_positions_per_strategy: 2`, risk 0,25% — **không đổi** vì chưa có paper.
+
+
 
 
 
@@ -1091,3 +1122,4 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | 19/11/2026 | 1.14 | **P1.4b quét 6 tín hiệu trên IS — không tín hiệu nào đạt:** mạnh nhất `mom24h` +11,1 bps/24h (t=1,8) < chi phí ~20 bps; `z2.5` +3,4 bps/2h; breakout 20h và 4h âm; momentum 48h −46,9 bps (t=−3,7). Không đưa ứng viên nào sang OOS (giữ nguyên dữ liệu 2023-01→2024-11). Kết luận: edge từ OHLCV 15m–4h nhỏ hơn chi phí |
 | 19/11/2026 | 1.15 | **P1.4c thử 2 họ còn lại — cũng âm:** 7 chiến lược danh mục (xsmom/xsrev/tsmom/donchian/funding perp-perp) đều âm, phí đổi vị thế 7–18%/năm; funding carry spot+perp trên 10 coin lớn chỉ +0,55%/năm ở kịch bản phí thấp nhất 3 tháng (funding APY trung bình 2,7%). Ghi toán học 300 USD: risk 1,5 USD/lệnh, phí ≈10% của risk ⇒ mục tiêu lãi ổn định không đạt được nếu không tăng vốn/giảm phí/đổi universe |
 | 19/11/2026 | 1.16 | **P1.4d universe 24 coin + funding cực trị + 5x:** short crowded-long âm (−43,7 bps/trade); **long khi funding < −30%/năm dương** (+61 đến +189 bps/trade, t 1,7–2,4) và sống qua bear 2020-2022 ở ngưỡng 20–30%. BTC SMA200 5x **bị thanh lý** (82–100 ngày vượt ngưỡng 19,5%); 3x cũng có 6 ngày vượt ngưỡng trong 2020-2022. Đề xuất duy nhất: funding-long thr 30% · giữ 3 ngày · 2–3x (CAGR 69–111%, DD 29–47%) — cần paper 4–8 tuần, không live ngay |
+| 19/11/2026 | 1.17 | **P1.4e kiểm tra tuân thủ risk engine:** MR+Trend 2024-01→2026-11 = −4.339,28 USD, DD 87,2% khi **tắt DD halt** (phục vụ đo DD); bật halt → −225,25 USD (−4,5%), dừng 23/04/2024 ⇒ risk engine hoạt động đúng. Funding-long qua risk engine đầy đủ chỉ +1,79%/năm (DD 2,52%, gross tối đa 26% equity) vì cap 2 vị thế/chiến lược + risk 0,5%. Con số "thanh lý 5x" đến từ mô hình vector hoá **không có** risk engine — không phải kết quả của engine. Ở 300 USD, risk 0,25% cho notional ~6 USD < minNotional BTC/ETH ⇒ phải risk ≥2%/lệnh mới vào được |
