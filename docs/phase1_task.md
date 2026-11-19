@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.12 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
+Phiên bản: 1.13 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
 
 ---
 
@@ -591,6 +591,63 @@ Nguyên nhân đo được (không phải suy đoán):
 - **MR**: TP = mid chỉ +0,27R trong khi SL = −1,13R; TP chỉ chiếm 30% số lần thoát. 59% lệnh thoát vì **regime flip sau ~1 giờ**, tức chưa kịp về mid. Với payoff lệch vậy, WR 45% không đủ bù.
 - **Trend**: 89% lệnh thoát vì regime flip sau ~4,2 giờ, quá ngắn cho trailing 2×ATR sau 1,5×ATR; trailing gần như không có cơ hội chạy. Đây là hệ quả của `trend_dir` + hysteresis 15m làm nhãn TREND không bền ở khung 1h.
 - **Trend long/short**: cả hai nhánh đều âm (−0,077 / −0,060) ⇒ không phải lỗi một phía.
+- **Chẩn đoán sâu hơn (cùng ngày, xem mục dưới) cho thấy nguyên nhân gốc không phải exit mà là tín hiệu không có edge**: barrier đối xứng 1R/1R cho MR 46,3% thắng / 47,3% thua (≈ tung xu), `trend_dir` đúng 47,9% (dưới 50%). Vì vậy **sửa TP/SL/exit không thể tạo ra edge** — chỉ đổi hình dạng của phân phối có trung bình ≤ 0 sau phí.
+
+### Chẩn đoán 19/11/2026 — đo edge thô (không đổi tham số)
+
+Script: `scripts/ps/p1.4-check.ps1 -Mode Diagnose` → `data/reports/p1.4-diagnose.json` (gitignore). Toàn bộ 10 symbol, 24 tháng.
+
+**1. Chi phí không phải thủ phạm chính** (chạy lại cùng bộ lệnh, chỉ đổi slippage):
+
+| Slippage | E[R] tổng | MR | Trend |
+|---|---|---|---|
+| 0 bps | −0,073 | −0,083 | −0,040 |
+| 2 bps | −0,087 | −0,098 | −0,051 |
+| 5 bps (chuẩn) | −0,107 | −0,119 | −0,067 |
+| 10 bps | −0,142 | −0,156 | −0,096 |
+
+→ Kể cả slippage = 0 vẫn âm. Chi phí chỉ chiếm ~0,03R; phần còn lại là cấu trúc.
+
+**2. Tín hiệu MR — không có edge** (đo trên đường giá 1m, 180 phút sau tín hiệu):
+
+| Đo | Có regime RANGE | Bỏ regime (75.017 tín hiệu) |
+|---|---|---|
+| TP (mid) chạm trước | 49,0% | 49,6% |
+| SL chạm trước | 19,0% | 15,7% |
+| Chưa chạm cái nào | 32,0% | 34,7% |
+| MFE trung vị | 0,28R | 0,23R |
+| close 12 nến (R) | −0,027 | −0,005 |
+| **Barrier đối xứng 1R/1R: TP / SL** | — | **46,3% / 47,3%** |
+
+→ Với barrier đối xứng, MR gần như **tung xu** (46,3% so với 50%). Không phải "TP quá gần" hay "SL quá xa" — bản thân điều kiện `wick ra biên + đóng trong band` không dự báo đảo chiều. Payoff spec (+0,27R / −1,13R) chỉ làm lỗ nhanh hơn.
+
+**3. Tín hiệu Trend — không có continuation** (1.227 tín hiệu có regime; 3.465 nếu bỏ regime):
+
+| Đo | Có regime TREND | Bỏ regime |
+|---|---|---|
+| MFE trung vị | 0,43R | 0,51R |
+| P(MFE ≥ 1,5R) | 12,6% | 17,1% |
+| SL chạm trước (36h) | 22,7% | 27,7% |
+| close 36 nến (R) | −0,024 | +0,031 |
+
+→ Random walk với barrier +1,5R/−1R phải đạt +1,5R trước ~40% số lần; đo được 12,6–17,1%. Tín hiệu **kém hơn random**, nên trailing/exit không cứu được.
+
+**4. Regime không mang thông tin hướng**:
+
+| Đo | Kết quả |
+|---|---|
+| corr(`z`, return 8 nến) trong RANGE | −0,0012 (≈ 0) |
+| IC của `z` toàn bộ nến (4/8/16 nến) | −0,0005 / +0,0011 / +0,0055 |
+| `trend_dir` đúng hướng sau 24h | **47,9%** (379.678 mẫu) |
+| Forward 24h có dấu theo `trend_dir` | +0,29 bps (≈ 0) |
+| Phân bố nhãn | TREND 385.583 · UNKNOWN 253.003 · RANGE 31.393 · SQUEEZE 18.071 · CRISIS 270 |
+
+→ Nhãn TREND/RANGE hiện tại **không dự báo** hướng đi. Đây là khớp với gate D của P1.2 (fail 50,85%).
+
+**Kết luận chẩn đoán:** không sửa TP/SL/exit. Muốn có edge phải thay **tầng tín hiệu** (điều kiện vào hoặc khung thời gian), và phải chứng minh bằng IC/barrier test trước khi viết thành chiến lược.
+
+> Ghi chú trung thực: lần đo đầu tiên dùng path 12 **phút** thay vì 12 nến 15m, cho số sai (TP 5,6%). Đã sửa (hằng số `MR_PATH_MIN = 180`, `TREND_PATH_MIN = 2160`) và chạy lại; số trong bảng là bản đã sửa.
+
 
 
 ### Ghi chú
@@ -885,3 +942,4 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | 18/11/2026 | 1.10 | **P1.3 xong:** config loader + validate; schema `positions` mở rộng + `signals`/`equity`/`commands`; risk fail-fast 18 lý do + sizing floor; executor SL ngay sau fill (short = buy-stop), trailing make-before-break, recovery; kill switch 3 cấp; `exchange/orders.py` thêm `fetch_order`/`cancel_order`/`cancel_algo`/`time_in_force`/`reduce_only` (soak chưa chạy); 208 test; integration SL 9ms, orphan 0, kill 35ms; phát hiện & sửa bug shape `openAlgoOrders`; ghi nhận reconcile chưa so algo |
 | 19/11/2026 | 1.11 | **Chốt 5 quyết định P1.4** (spec bump v2.2): MR = wick ra biên + đóng trong band, guard `TP ≥ 0,3%` thay `range_pct ≥ 50` (mâu thuẫn với RANGE); dữ liệu 10 symbol × 24 tháng; walk-forward = slice 2 tháng báo cáo riêng, OOS 6 tháng chạy 1 lần, không tune; Trend dùng pivot fractal k=3 + fib 30–61,8% + chạm EMA20/50 trong 5 nến (proxy, không phải HH/HL); gate DD đo ở 0,5%/lệnh |
 | 19/11/2026 | 1.12 | **P1.4 xong — NO-GO:** backtest engine 1m + MR + Trend L/S + walk-forward 9 slice + OOS; 1.957 lệnh MR E[R] −0,119R, 598 lệnh Trend E[R] −0,067R (L −0,077/S −0,060); gross âm trước phí; DD 74,8%; OOS cùng dấu (−0,107R); 4/8 cổng; nguyên nhân: MR TP chỉ +0,27R vs SL −1,13R và 59% thoát do regime sau ~1h; Trend 89% thoát do regime sau ~4,2h nên trailing không chạy; **không tune**, không bật live |
+| 19/11/2026 | 1.13 | **Chẩn đoán P1.4:** slippage 0 vẫn −0,073R (chi phí không phải gốc); MR barrier đối xứng 1R/1R = 46,3%/47,3% (≈ tung xu, không có edge); Trend P(MFE≥1,5R) 12,6–17,1% so với ~40% của random walk; `trend_dir` đúng 47,9%; corr(z,fwd8) ≈ −0,001 ⇒ **lỗi ở tầng tín hiệu/regime, không phải exit**; sửa bug path 12 phút → 180 phút (`MR_PATH_MIN`) trước khi kết luận |

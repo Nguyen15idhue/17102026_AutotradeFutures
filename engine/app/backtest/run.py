@@ -10,19 +10,16 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import dataclasses
 import json
 import time
 from datetime import date
 from pathlib import Path
 
 from .. import config as config_mod
-from ..data import bars as bars_mod
-from . import funding as funding_mod
-from . import loader, walkforward
+from . import pipeline, walkforward
 from . import report as report_mod
 from . import sim as sim_mod
-
-MS_PER_DAY = 86_400_000
 
 
 def _parse_date(s: str) -> date:
@@ -31,18 +28,6 @@ def _parse_date(s: str) -> date:
 
 def _ms(d: date) -> int:
     return int(calendar.timegm(d.timetuple())) * 1000
-
-
-def _btc_returns(bars1m: list[dict]) -> dict[int, float]:
-    bars15 = bars_mod.aggregate(bars1m, "15m")[0]
-    out: dict[int, float] = {}
-    prev: float | None = None
-    for b in bars15:
-        close = float(b["c"])
-        if prev:
-            out[int(b["open_time"]) + sim_mod.H15_MS] = close / prev - 1.0
-        prev = close
-    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -62,55 +47,40 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="halt khi DD >= max_drawdown (mac dinh TAT cho nghien cuu P1.4)",
     )
+    ap.add_argument(
+        "--slippage-bps",
+        type=float,
+        default=None,
+        help="ghi de slippage (dung cho do nhay chi phi); mac dinh lay tu config",
+    )
     args = ap.parse_args(argv)
 
     cfg = config_mod.load(args.config)
-    root = Path(args.data_dir) / "market"
+    if args.slippage_bps is not None:
+        cfg = dataclasses.replace(
+            cfg,
+            execution=dataclasses.replace(cfg.execution, slippage_bps=args.slippage_bps),
+        )
     start_ms, end_ms = _ms(_parse_date(args.start)), _ms(_parse_date(args.end))
     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()] or [
         str(s) for s in cfg.universe.get("symbols", [])
     ]
-    filters = loader.load_filters(args.exchange_info)
     t0 = time.time()
 
-    raw: dict[str, list[dict]] = {}
-    for sym in symbols:
-        raw[sym] = loader.load_1m(root, sym, start_ms, end_ms)
-        print(f"load {sym}: {len(raw[sym])} nen 1m", flush=True)
-    if not raw or not any(raw.values()):
+    data, funding, funding_ok, bar_counts = pipeline.load(
+        cfg,
+        data_dir=args.data_dir,
+        symbols=symbols,
+        start_ms=start_ms,
+        end_ms=end_ms,
+        exchange_info=args.exchange_info,
+        use_funding=not args.no_funding,
+        start_date=_parse_date(args.start),
+        end_date=_parse_date(args.end),
+    )
+    if not data:
         print("khong co du lieu 1m — kiem tra data-dir/--start/--end")
         return 2
-
-    funding: dict[str, dict[int, float]] = {}
-    funding_ok = True
-    if not args.no_funding:
-        from concurrent.futures import ThreadPoolExecutor
-
-        s_date, e_date = _parse_date(args.start), _parse_date(args.end)
-
-        def _one(sym: str) -> tuple[str, dict[int, float], bool]:
-            return (sym, *funding_mod.load_or_fetch(root.parent, sym, s_date, e_date))
-
-        with ThreadPoolExecutor(max_workers=5) as pool:
-            for sym, rates, ok in pool.map(_one, symbols):
-                funding[sym] = rates
-                funding_ok = funding_ok and ok
-                if not ok:
-                    print(f"funding {sym}: khong tai duoc -> dung 0", flush=True)
-
-    btc_ret = _btc_returns(raw["BTCUSDT"]) if raw.get("BTCUSDT") else {}
-    data: dict[str, sim_mod.SymbolData] = {}
-    for sym in symbols:
-        if not raw.get(sym):
-            continue
-        data[sym] = sim_mod.build_symbol(
-            sym,
-            raw[sym],
-            filters.get(sym, loader.DEFAULT_FILTERS),
-            funding.get(sym, {}),
-            btc_ret if sym != "BTCUSDT" else None,
-        )
-        print(f"build {sym}: 15m={len(data[sym].bars15)} 1h={len(data[sym].bars1h)}", flush=True)
 
     slices = walkforward.build_slices(
         start_ms, end_ms, oos_months=args.oos_months, slice_months=args.slice_months
@@ -125,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
         "symbols": sorted(data),
         "start_ms": start_ms,
         "end_ms": end_ms,
-        "bars_1m": {s: len(raw[s]) for s in data},
+        "bars_1m": bar_counts,
         "funding_from_history": funding_ok,
         "fee_bps_maker": cfg.execution.fee_bps_maker,
         "fee_bps_taker": cfg.execution.fee_bps_taker,

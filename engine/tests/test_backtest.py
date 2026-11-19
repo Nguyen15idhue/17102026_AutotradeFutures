@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from app import config as config_mod
-from app.backtest import loader, walkforward
+from app.backtest import diagnostics, loader, pipeline, walkforward
 from app.backtest import report as report_mod
 from app.backtest import sim as sim_mod
 
@@ -338,3 +338,72 @@ def test_run_cli_end_to_end(tmp_path):
     assert rep["data"]["symbols"] == ["BTCUSDT", "ETHUSDT"]
     assert len(rep["slices"]) >= 1
     assert "gates" in rep
+
+
+# ---------- diagnostics ----------
+
+
+def test_path_outcome_sl_first():
+    bars = {i * 60_000: {"h": 100.0, "l": 98.5, "c": 98.6} for i in range(1, 4)}
+    out = diagnostics.path_outcome(bars, 60_000, 100.0, 99.0, 103.0, 1, 3)
+    assert out["exit"] == "sl"
+    assert out["mae_r"] == pytest.approx(-1.5)
+
+
+def test_path_outcome_tp_first():
+    bars = {i * 60_000: {"h": 103.5, "l": 99.4, "c": 103.0} for i in range(1, 4)}
+    out = diagnostics.path_outcome(bars, 60_000, 100.0, 99.0, 103.0, 1, 3)
+    assert out["exit"] == "tp"
+    assert out["mfe_r"] == pytest.approx(3.5)
+
+
+def test_path_outcome_same_bar_prefers_sl():
+    bars = {60_000: {"h": 104.0, "l": 98.0, "c": 100.0}}
+    out = diagnostics.path_outcome(bars, 60_000, 100.0, 99.0, 103.0, 1, 3)
+    assert out["exit"] == "sl"
+
+
+def test_path_outcome_short_mirror_and_close_r():
+    bars = {i * 60_000: {"h": 100.5, "l": 98.0, "c": 99.0} for i in range(1, 4)}
+    out = diagnostics.path_outcome(bars, 60_000, 100.0, 101.0, 98.0, -1, 3)
+    assert out["exit"] == "tp"
+    bars2 = {i * 60_000: {"h": 100.2, "l": 99.1, "c": 99.5} for i in range(1, 5)}
+    out2 = diagnostics.path_outcome(bars2, 60_000, 100.0, 101.0, 98.0, -1, 4)
+    assert out2["exit"] == "none"
+    assert out2["close_r"] == pytest.approx(0.5)
+
+
+def test_summary_percentages():
+    rows = [
+        {"mfe_r": 3.0, "mae_r": -0.2, "exit": "tp", "close_r": 2.0},
+        {"mfe_r": 0.5, "mae_r": -1.0, "exit": "sl", "close_r": -1.0},
+    ]
+    s = diagnostics._summ(rows)
+    assert s["n"] == 2
+    assert s["exit_tp_pct"] == 0.5 and s["exit_sl_pct"] == 0.5
+    assert s["p_mfe_ge_1r"] == 0.5
+    assert s["close_r_win_pct"] == 0.5
+
+
+def test_btc_returns_only_closed_15m():
+    start = _ms(2026, 1, 1)
+    bars = []
+    for i in range(30):  # 2 nen 15m
+        px = 100.0 + i
+        bars.append(
+            {
+                "open_time": start + i * 60_000,
+                "close_time": start + i * 60_000 + 59_999,
+                "o": px,
+                "h": px + 0.5,
+                "l": px - 0.5,
+                "c": px,
+                "v": 1.0,
+                "closed": True,
+            }
+        )
+    rets = pipeline.btc_returns(bars)
+    assert len(rets) == 1
+    first_close = int(bars[14]["c"])
+    second_close = int(bars[29]["c"])
+    assert rets[start + 2 * H15] == pytest.approx(second_close / first_close - 1.0)

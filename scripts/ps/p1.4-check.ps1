@@ -12,14 +12,14 @@
     KHÔNG phải lỗi script: đó là kết quả nghiên cứu, script vẫn exit 0.
 
 .PARAMETER Mode
-    Test | Backtest | All
+    Test | Backtest | Diagnose | All
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\ps\p1.4-check.ps1 -Mode All
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet("Test", "Backtest", "All")]
+    [ValidateSet("Test", "Backtest", "Diagnose", "All")]
     [string] $Mode = "Test"
 )
 
@@ -87,11 +87,29 @@ function Chay-Backtest {
     Bao-Dat ("DD max=" + ${r}.sim.max_dd_pct + "% | cổng đạt " + ${dat} + "/8" + $(if (${truot}) { " — trượt: " + ${truot} } else { "" }))
 }
 
+function Chay-ChanDoan {
+    Push-Location "${engineDir}"
+    try {
+        $raw = & "${py}" -m app.backtest.diagnose `
+            --config (Join-Path "${repoRoot}" "config\mvp.mock.yaml") `
+            --data-dir (Join-Path "${repoRoot}" "data") `
+            --exchange-info (Join-Path "${repoRoot}" "mock\fixtures\exchangeInfo.json") `
+            --start "2024-12-01" --end "2026-11-18" `
+            --out (Join-Path "${repoRoot}" "data\reports\p1.4-diagnose.json") 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "chẩn đoán thất bại: $($raw | Select-Object -Last 1)" }
+    } finally {
+        Pop-Location
+    }
+    $dong = @($raw | Where-Object { "${_}" -match "^(MR signal|Trend signal|Regime)" })
+    foreach ($d in $dong) { Bao-Dat "${d}" }
+}
+
 $batDau = Get-Date
 try {
     Write-Host "== P1.4: backtest MR + Trend ==" -ForegroundColor Cyan
     if (${Mode} -eq "Test" -or ${Mode} -eq "All") { Chay-Test }
     if (${Mode} -eq "Backtest" -or ${Mode} -eq "All") { Chay-Backtest }
+    if (${Mode} -eq "Diagnose") { Chay-ChanDoan }
     $giay = [int]((Get-Date) - ${batDau}).TotalSeconds
     Bao-Dat "P1.4: xong (${giay} giây)"
     exit 0
