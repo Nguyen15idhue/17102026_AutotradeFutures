@@ -10,16 +10,19 @@ Bot tự động giao dịch **Binance USDⓈ-M Futures** (USDT-M, perpetual), v
 
 Mục tiêu **không phải** tối đa lợi nhuận mà là: **không chết** trong lúc học. Mọi quyết định kỹ thuật ưu tiên "không mất kiểm soát vị thế" hơn "tối ưu PnL".
 
-**Trạng thái hiện tại (18/11/2026): P1.1 xong phần code (soak 72h còn chờ VPS), P1.2 xong. Chưa có risk/exec/strategy/dashboard.**
+**Trạng thái hiện tại (19/11/2026): P1.1 xong phần code (soak 72h còn chờ VPS), P1.2/P1.2b xong, P1.3 xong, P1.4 xong — kết quả backtest NO-GO (âm trước phí, không bật live). Chưa có watchdog/dashboard wiring.**
 
 | Có gì | Chưa có gì |
 |---|---|
-| `mock/binance-demo-server/` — 48 endpoint, WS, SQLite, chaos | `risk/`, `exec/`, `strategies/`, `watchdog/` |
-| `engine/app/exchange/` — REST, WS, order state machine, reconcile, clock | `dashboard/` |
-| `engine/app/data/` — downloader, bars, features, replay, spotcheck, persist | Backtest engine |
-| `engine/app/regime/` — 5 nhãn + hysteresis + CRISIS tức thời | `trend_dir` (P1.2b) |
-| `config/mvp.mock.yaml`, `config/mvp.live.yaml` | Soak 72h pass (chạy trên VPS) |
-| `docker-compose.yml`, CI, script PS, `docs/` (6 file) | |
+| `mock/binance-demo-server/` — 48 endpoint, WS, SQLite, chaos | `watchdog/`, `dashboard/` (nối dữ liệu) |
+| `engine/app/exchange/` — REST, WS, order state machine, reconcile, clock | Live trading (chưa mở) |
+| `engine/app/data/` — downloader, bars, features, replay, spotcheck, persist | `trend_dir` nâng cấp cấu trúc HH/HL (mới là proxy) |
+| `engine/app/regime/` — 5 nhãn + hysteresis + CRISIS tức thời | |
+| `engine/app/risk/` + `exec/` — risk fail-fast, sizing, executor, recovery, kill switch | |
+| `engine/app/strategies/` — MR + Trend Pullback (long/short), thuần, không gọi API | |
+| `engine/app/backtest/` — event-driven 1m, fill model, funding, walk-forward, report | |
+| `config/mvp.mock.yaml`, `config/mvp.live.yaml` | |
+| `docker-compose.yml`, CI, script PS, `docs/` | |
 
 ---
 

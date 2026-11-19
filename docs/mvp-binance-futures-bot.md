@@ -2,7 +2,8 @@
 
 **Kế hoạch triển khai cho người mới (dân CNTT, chưa biết trading/bot)**
 
-- Phiên bản: 2.1 (chốt định nghĩa MR và hình học Trend Pullback trước backtest P1.4 — quyết định 19/11/2026, xem §6.3 và §15.2)
+- Phiên bản: 2.2 (sửa mâu thuẫn `range_pct` ở MR: bỏ percentile, thay bằng guard kinh tế "TP ≥ 0,3%" — quyết định 19/11/2026)
+- Lịch sử: 2.1 (chốt định nghĩa MR và hình học Trend Pullback trước backtest P1.4 — quyết định 19/11/2026, xem §6.3 và §15.2)
 - Lịch sử: 2.0 (**đổi phạm vi MVP**: bỏ chiến lược Squeeze (giữ nhãn), Trend Pullback **live cả long + short** thay vì shadow; live 4 vị thế / portfolio 2,0% / correlated 0,5%; mock rút còn 2 tuần — quyết định 18/11/2026)
 - Lịch sử: 1.10 (P1.2: chuẩn hoá `range_24h` bằng percentile `range_pct` thay vì so trực tiếp với ATR — 0% nến thoả trên dữ liệu thật; làm rõ vol_pct/bbw/CRISIS; sửa tỉ lệ RANGE thực đo)
 - Lịch sử: 1.9 (chuyển môi trường demo sang **mock tự dựng** `binance-demo-server`; bỏ phụ thuộc Binance Demo Trading / `demo-fapi.binance.com`)
@@ -508,7 +509,7 @@ Tất cả phải đúng:
   - long: `low <= bb_dn` **và** `close > bb_dn`;
   - short: `high >= bb_up` **và** `close < bb_up`.
   Tương đương `|z|` tại wick ≥ 2,0 và `|z|` tại close < 2,0. Cách đọc cũ ("`z <= −2` **và** đóng trong band") là mâu thuẫn nội tại: hai điều kiện gần như không bao giờ cùng đúng (đo được 0,00–0,01 tín hiệu/ngày/symbol), đã bỏ.
-- `range_pct >= 50` (range 24h không quá hẹp so với lịch sử → TP phải lớn hơn phí).
+- **Guard kinh tế:** `(TP − entry) / entry >= 0,003` (0,3% ≈ 3× phí round-trip 0,1% + slippage). Đây là bản sửa của điều kiện cũ "`range_pct >= 50`", vốn mâu thuẫn với RANGE (`range_pct < 50`) nên chặn 100% lệnh MR.
 - `bbw_pct > 15`.
 - Không trong blackout tin macro (±45 phút).
 - Spread hiện tại < 2 bps.
@@ -536,7 +537,7 @@ Tất cả phải đúng:
 ### Điểm chết
 
 - Range bị phá → lỗ liên tiếp. Bảo vệ: BBW > 15 và SL ngoài biên.
-- Range quá hẹp → TP < phí. Bảo vệ: yêu cầu `range_pct ≥ 50` (P1.4 chốt; điều kiện cũ `range_24h ≥ 1,5×ATR` luôn đúng khi so range 96 nến với ATR 15m).
+- Range quá hẹp → TP < phí. Bảo vệ: guard `(TP − entry)/entry ≥ 0,3%` (sửa 19/11/2026; điều kiện cũ `range_pct ≥ 50` mâu thuẫn với RANGE `range_pct < 50`).
 - Maker không khớp → bỏ lỡ. Chấp nhận, không đuổi.
 - Funding xấu khi giữ lâu → time stop 12 nến.
 
