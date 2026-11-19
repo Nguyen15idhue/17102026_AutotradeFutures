@@ -292,6 +292,7 @@ def simulate(
         "funding_pnl_pct": round(-fund_sum * 100, 2),
         "turnover_per_day": round(turnover_sum / len(daily), 3),
         "equity_end": round(equity, 4),
+        "curve": curve,
         "curve_tail": [round(x, 4) for x in curve[-3:]],
     }
 

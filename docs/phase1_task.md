@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.17 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
+Phiên bản: 1.18 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
 
 ---
 
@@ -820,6 +820,53 @@ Câu hỏi của user: kết quả 2024→nay lời/lỗ thế nào, có bỏ qu
 
 **Trạng thái:** config live vẫn `max_leverage: 3`, `max_positions_per_strategy: 2`, risk 0,25% — **không đổi** vì chưa có paper.
 
+### P1.4f/g — Altcoin-only, mục tiêu 5-10%/tháng (19/11/2026)
+
+User chốt: **bỏ trade BTC** (chỉ làm tham chiếu), chỉ trade altcoin; mục tiêu 5–10%/tháng ổn định, lỗ tháng ≤5–10%; 10–30%/tháng vẫn ghi nhận; **>30%/tháng phải audit**.
+
+**1. Alt-only, 4 họ chiến lược × gross 1/2/3 (2024-01 → 2026-11, 975 ngày chung, 23 alt):**
+
+| Chiến lược | Gross | Mean/tháng | Median | Tháng xấu nhất | % tháng ≥5% | CAGR | DD |
+|---|---|---|---|---|---|---|---|
+| trend SMA50 | 1x | 0,77% | −2,52% | −10,0% | 15,6% | −0,1% | 54,6% |
+| trend SMA100 | 2x | 2,58% | −1,32% | −32,0% | 15,6% | −11,7% | 81,4% |
+| mom14 top5 | 2x | 1,51% | −1,37% | −38,6% | 28,1% | −18,0% | 77,3% |
+| donchian20/10 | 2x | 0,57% | −4,86% | −19,3% | 15,6% | −16,5% | 71,9% |
+| **funding-dip thr30 h3** | **2x** | **1,79%** | 0,75% | −14,7% | 25,0% | +20,6% | 32,6% |
+| **funding-dip thr30 h3** | **3x** | **2,38%** | 1,03% | −22,4% | 28,1% | +25,9% | 45,5% |
+
+→ Chỉ **funding-dip** dương; trend/momentum/donchian đều âm hoặc có tháng −30% trở lên.
+
+**2. Sweep vận hành funding-dip (hold 1/3, max_pos 5/10, gross 2–4, vol targeting):**
+
+| Biến thể | Mean/tháng | Tháng xấu nhất | ≥5% tháng | CAGR | DD |
+|---|---|---|---|---|---|
+| fd h1 mp10 g2 | 0,41% | **−5,4%** | 6,2% | 4,4% | 12,4% |
+| fd h1 mp10 g3 | 0,61% | **−8,3%** | 6,2% | 6,2% | 18,5% |
+| fd voltgt g2 | 1,58% | −11,5% | 25,0% | 18,3% | 23,1% |
+| fd voltgt g3 | 2,22% | −17,3% | 28,1% | 24,7% | 33,1% |
+| fd voltgt g4 | **2,78%** | −23,1% | 37,5% | 28,9% | 42,2% |
+| fd h3 mp5 g4 | **2,80%** | −30,1% | 31,2% | 27,6% | 56,3% |
+| fd high-vol (8 alt) g3 | 0,03% | −27,6% | — | −3,6% | 52,7% |
+
+**3. Đối chiếu mục tiêu:**
+
+| Mục tiêu | Kết quả |
+|---|---|
+| 5–10%/tháng ổn định | ❌ Không có biến thể nào đạt; cao nhất **2,8%/tháng** (và tháng xấu −30%) |
+| 10–30%/tháng (ghi nhận) | ❌ Không có |
+| >30%/tháng (phải audit) | ❌ Không có → **không có gì cần audit** |
+| Lỗ tháng ≤5–10% | ✅ Chỉ đạt khi mean rơi về **0,4–0,6%/tháng** (fd h1 mp10 g2–g3) |
+
+**Kết luận P1.4f/g:** trên altcoin, với phí 10 bps và dữ liệu ngày, **không có biến thể nào đạt 5–10%/tháng**. Đường đánh đổi rõ ràng:
+
+- Muốn tháng xấu ≤ −10% → lãi ~0,4–1,6%/tháng.
+- Muốn ~2,8%/tháng → phải chấp nhận tháng −23 đến −30% và DD 42–56%.
+- Để đạt 5–10%/tháng phải tăng gross lên ~8–12x → DD 80–95%, tức gần như chắc chắn cháy trong mẫu.
+
+Đây là **giới hạn của edge**, không phải của code: funding-dip có edge thật (dương ở cả 2020-2022 và 2023-2026) nhưng tần suất ~5 lệnh/tháng × biên lợi nhuận ~1–2%/lệnh không đủ để tạo 5–10%/tháng mà không đánh cược toàn bộ vốn.
+
+
 
 
 
@@ -1123,3 +1170,4 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | 19/11/2026 | 1.15 | **P1.4c thử 2 họ còn lại — cũng âm:** 7 chiến lược danh mục (xsmom/xsrev/tsmom/donchian/funding perp-perp) đều âm, phí đổi vị thế 7–18%/năm; funding carry spot+perp trên 10 coin lớn chỉ +0,55%/năm ở kịch bản phí thấp nhất 3 tháng (funding APY trung bình 2,7%). Ghi toán học 300 USD: risk 1,5 USD/lệnh, phí ≈10% của risk ⇒ mục tiêu lãi ổn định không đạt được nếu không tăng vốn/giảm phí/đổi universe |
 | 19/11/2026 | 1.16 | **P1.4d universe 24 coin + funding cực trị + 5x:** short crowded-long âm (−43,7 bps/trade); **long khi funding < −30%/năm dương** (+61 đến +189 bps/trade, t 1,7–2,4) và sống qua bear 2020-2022 ở ngưỡng 20–30%. BTC SMA200 5x **bị thanh lý** (82–100 ngày vượt ngưỡng 19,5%); 3x cũng có 6 ngày vượt ngưỡng trong 2020-2022. Đề xuất duy nhất: funding-long thr 30% · giữ 3 ngày · 2–3x (CAGR 69–111%, DD 29–47%) — cần paper 4–8 tuần, không live ngay |
 | 19/11/2026 | 1.17 | **P1.4e kiểm tra tuân thủ risk engine:** MR+Trend 2024-01→2026-11 = −4.339,28 USD, DD 87,2% khi **tắt DD halt** (phục vụ đo DD); bật halt → −225,25 USD (−4,5%), dừng 23/04/2024 ⇒ risk engine hoạt động đúng. Funding-long qua risk engine đầy đủ chỉ +1,79%/năm (DD 2,52%, gross tối đa 26% equity) vì cap 2 vị thế/chiến lược + risk 0,5%. Con số "thanh lý 5x" đến từ mô hình vector hoá **không có** risk engine — không phải kết quả của engine. Ở 300 USD, risk 0,25% cho notional ~6 USD < minNotional BTC/ETH ⇒ phải risk ≥2%/lệnh mới vào được |
+| 19/11/2026 | 1.18 | **P1.4f/g altcoin-only (bỏ BTC), mục tiêu 5–10%/tháng:** trend/momentum/donchian alt đều âm (tháng xấu −32 đến −38%); chỉ funding-dip dương: 2x = 1,79%/tháng (tháng xấu −14,7%, DD 32,6%), 3x = 2,38% (−22,4%, DD 45,5%), sweep tối đa 2,80%/tháng (tháng xấu −30%, DD 56%). **Không có biến thể nào ≥5%/tháng**; không có run >10% nên không có gì phải audit. Chỉ giữ được lỗ tháng ≤10% khi hạ về 0,4–0,6%/tháng |
