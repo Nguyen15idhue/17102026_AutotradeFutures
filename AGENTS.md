@@ -10,7 +10,7 @@ Bot tự động giao dịch **Binance USDⓈ-M Futures** (USDT-M, perpetual), v
 
 Mục tiêu **không phải** tối đa lợi nhuận mà là: **không chết** trong lúc học. Mọi quyết định kỹ thuật ưu tiên "không mất kiểm soát vị thế" hơn "tối ưu PnL".
 
-**Trạng thái hiện tại (19/11/2026): P1.1 xong phần code (soak 72h còn chờ VPS), P1.2/P1.2b xong, P1.3 xong, P1.4 xong — kết quả backtest NO-GO (âm trước phí, không bật live). Chưa có watchdog/dashboard wiring.**
+**Trạng thái hiện tại (19/11/2026): P1.1 xong phần code (soak 72h còn chờ VPS), P1.2/P1.2b xong, P1.3 xong, P1.4 xong — NO-GO. P1.4b/c đã thử 6 tín hiệu + 7 chiến lược danh mục + funding carry: không họ nào dương sau phí ở mức có ý nghĩa (xem `docs/phase1_task.md`). Chưa có watchdog/dashboard wiring; không bật live.**
 
 | Có gì | Chưa có gì |
 |---|---|

@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.14 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
+Phiên bản: 1.15 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
 
 ---
 
@@ -677,6 +677,56 @@ Kết quả IS 2024-12-01 → 2026-05-01 (10 symbol, `signal_scan.py`):
 
 Bài học đo được: ở 15m–4h trên 10 coin, các tín hiệu dựng từ OHLCV công khai có edge **nhỏ hơn chi phí giao dịch**. Muốn có edge phải tìm ở nơi khác (cross-sectional/relative value, funding, hoặc dữ liệu ngoài OHLCV), không phải tinh chỉnh thêm chỉ báo.
 
+### P1.4c — thử các họ chiến lược khác (19/11/2026)
+
+Mục tiêu: kiểm xem có họ chiến lược nào cho **lãi ổn định sau phí** với dữ liệu đang có, trước khi kết luận. Hai phòng thử mới: `portfolio_lab.py` (chiến lược danh mục theo ngày) và `carry_lab.py` (funding carry delta-neutral spot+perp).
+
+**1. Chiến lược danh mục, 2024-12-01 → 2026-11-18, phí 10 bps/lần đổi vị thế:**
+
+| Chiến lược | CAGR | Vol | Sharpe | MaxDD | Phí (cả kỳ) |
+|---|---|---|---|---|---|
+| xsmom7 (momentum 7 ngày, đổi hàng tuần) | −17,4% | 19,1% | −0,91 | 43,1% | 14,2% |
+| xsmom30 (momentum 30 ngày) | −18,1% | 18,3% | −1,00 | 35,8% | 7,0% |
+| xsrev3 (đảo chiều 3 ngày) | −23,5% | 19,0% | −1,31 | 47,1% | 32,7% |
+| tsmom50_200 (SMA 50/200 ngày) | −30,6% | 46,3% | −0,55 | 55,1% | 0,7% |
+| donchian20_10 (breakout 20 ngày) | −19,9% | 45,3% | −0,26 | 49,0% | 4,0% |
+| funding_carry (short funding cao / long thấp, perp-perp) | −13,0% | 16,5% | −0,76 | 33,8% | 36,4% |
+| funding_hedged (short funding cao + long BTC) | −3,6% | 20,1% | −0,08 | 24,6% | 19,7% |
+
+→ Tất cả âm. Nguyên nhân chung: **chi phí đổi vị thế 7–18%/năm** trong khi lợi thế gross ~0. Ngay cả khi giảm phí xuống 2 bps, các chiến lược này vẫn âm vì gross đã âm.
+
+**2. Funding carry thật (long spot + short perp), 2023-01 → 2026-11, 47 tháng:**
+
+| Phí/chu kỳ | Chu kỳ | CAGR | Vol | Sharpe | MaxDD |
+|---|---|---|---|---|---|
+| 38 bps | 1 tháng | −3,08% | 0,92% | −3,40 | 11,55% |
+| 38 bps | 3 tháng | −0,17% | 1,09% | −0,15 | 2,93% |
+| 20 bps | 1 tháng | −0,96% | 0,92% | −1,05 | 4,78% |
+| 20 bps | 3 tháng | **+0,55%** | 1,09% | 0,51 | 1,70% |
+
+Funding APY thực đo trên 10 coin lớn: BTC 4,7% · LINK 5,5% · DOGE 4,3% · ETH 4,1% · ADA 3,6% · SUI 3,3% · XRP 2,5% · AVAX 1,3% · BNB 0,5% · SOL 0,5% — **trung bình ~2,7%/năm**, trong khi phí vào/ra 1 chu kỳ 20–38 bps (≈1,5–4,6%/năm nếu đổi hàng tháng).
+
+→ Carry trên coin lớn **không đủ trả phí**. Chỉ dương ở kịch bản lạc quan nhất (phí 20 bps, đổi 3 tháng) và mức +0,55%/năm là không có ý nghĩa kinh tế.
+
+**3. Toán học của tài khoản 300 USD (lý do gốc):**
+
+- Risk 0,5%/lệnh = **1,5 USD/lệnh**.
+- Phí round-trip ~0,1% notional; với stop 1% → notional 150 USD → phí 0,15 USD ≈ **10% của risk**.
+- Muốn lãi 15 USD/tháng (5%) với expectancy 0,2R/lệnh cần ~50 lệnh/tháng; expectancy 0,2R là rất cao và không đo được ở bất kỳ chiến lược nào trong P1.4.
+- Carry 2,7%/năm trên 300 USD = **8 USD/năm**.
+
+⇒ Với 300 USD + phí retail + dữ liệu công khai, mục tiêu "lãi ổn định" **không đạt được bằng các họ chiến lược đã thử**. Đây là kết luận định lượng, không phải bi quan cảm tính.
+
+**Điều kiện nào phải thay đổi để có lãi (xếp theo hiệu quả):**
+
+1. **Vốn lớn hơn** (≥10.000 USD): carry 2,7–5%/năm = 270–500 USD/năm,DD 2–4% — ổn định nhưng lợi nhuận tuyệt đối vẫn nhỏ.
+2. **Phí thấp hơn** (maker/VIP/BNB): carry 3 tháng còn ~0,04%/chu kỳ → net ~2,4%/năm.
+3. **Universe funding cao hơn** (coin nhỏ, funding 20–100%/năm): lợi nhuận cao hơn nhưng rủi ro thanh lý/crowded-long tăng mạnh — phải test riêng với cap exposure.
+4. **Nguồn edge khác** (market making, dữ liệu ngoài OHLCV): ngoài phạm vi bot này.
+
+**Không nên làm:** nới risk/leverage để "cho có lãi". Không có edge thì nới risk chỉ làm cháy nhanh hơn; dữ liệu P1.4 cho thấy âm cả trước phí.
+
+
 
 
 
@@ -974,3 +1024,4 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | 19/11/2026 | 1.12 | **P1.4 xong — NO-GO:** backtest engine 1m + MR + Trend L/S + walk-forward 9 slice + OOS; 1.957 lệnh MR E[R] −0,119R, 598 lệnh Trend E[R] −0,067R (L −0,077/S −0,060); gross âm trước phí; DD 74,8%; OOS cùng dấu (−0,107R); 4/8 cổng; nguyên nhân: MR TP chỉ +0,27R vs SL −1,13R và 59% thoát do regime sau ~1h; Trend 89% thoát do regime sau ~4,2h nên trailing không chạy; **không tune**, không bật live |
 | 19/11/2026 | 1.13 | **Chẩn đoán P1.4:** slippage 0 vẫn −0,073R (chi phí không phải gốc); MR barrier đối xứng 1R/1R = 46,3%/47,3% (≈ tung xu, không có edge); Trend P(MFE≥1,5R) 12,6–17,1% so với ~40% của random walk; `trend_dir` đúng 47,9%; corr(z,fwd8) ≈ −0,001 ⇒ **lỗi ở tầng tín hiệu/regime, không phải exit**; sửa bug path 12 phút → 180 phút (`MR_PATH_MIN`) trước khi kết luận |
 | 19/11/2026 | 1.14 | **P1.4b quét 6 tín hiệu trên IS — không tín hiệu nào đạt:** mạnh nhất `mom24h` +11,1 bps/24h (t=1,8) < chi phí ~20 bps; `z2.5` +3,4 bps/2h; breakout 20h và 4h âm; momentum 48h −46,9 bps (t=−3,7). Không đưa ứng viên nào sang OOS (giữ nguyên dữ liệu 2023-01→2024-11). Kết luận: edge từ OHLCV 15m–4h nhỏ hơn chi phí |
+| 19/11/2026 | 1.15 | **P1.4c thử 2 họ còn lại — cũng âm:** 7 chiến lược danh mục (xsmom/xsrev/tsmom/donchian/funding perp-perp) đều âm, phí đổi vị thế 7–18%/năm; funding carry spot+perp trên 10 coin lớn chỉ +0,55%/năm ở kịch bản phí thấp nhất 3 tháng (funding APY trung bình 2,7%). Ghi toán học 300 USD: risk 1,5 USD/lệnh, phí ≈10% của risk ⇒ mục tiêu lãi ổn định không đạt được nếu không tăng vốn/giảm phí/đổi universe |
