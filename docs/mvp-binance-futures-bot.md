@@ -2,7 +2,8 @@
 
 **Kế hoạch triển khai cho người mới (dân CNTT, chưa biết trading/bot)**
 
-- Phiên bản: 2.0 (**đổi phạm vi MVP**: bỏ chiến lược Squeeze (giữ nhãn), Trend Pullback **live cả long + short** thay vì shadow; live 4 vị thế / portfolio 2,0% / correlated 0,5%; mock rút còn 2 tuần — quyết định 18/11/2026)
+- Phiên bản: 2.1 (chốt định nghĩa MR và hình học Trend Pullback trước backtest P1.4 — quyết định 19/11/2026, xem §6.3 và §15.2)
+- Lịch sử: 2.0 (**đổi phạm vi MVP**: bỏ chiến lược Squeeze (giữ nhãn), Trend Pullback **live cả long + short** thay vì shadow; live 4 vị thế / portfolio 2,0% / correlated 0,5%; mock rút còn 2 tuần — quyết định 18/11/2026)
 - Lịch sử: 1.10 (P1.2: chuẩn hoá `range_24h` bằng percentile `range_pct` thay vì so trực tiếp với ATR — 0% nến thoả trên dữ liệu thật; làm rõ vol_pct/bbw/CRISIS; sửa tỉ lệ RANGE thực đo)
 - Lịch sử: 1.9 (chuyển môi trường demo sang **mock tự dựng** `binance-demo-server`; bỏ phụ thuộc Binance Demo Trading / `demo-fapi.binance.com`)
 - Lịch sử: 1.8 (kết quả xác minh live 17/11/2026: minNotional không đồng nhất — BTC 50 · ETH/LINK 20 · alt 5; ghi tại `docs/verification.md`)
@@ -503,8 +504,11 @@ Giá trong range có xu hướng quay về giữa. Mua ở biên dưới, bán �
 Tất cả phải đúng:
 
 - Regime = `RANGE`.
-- `z <= -2.0` (long) hoặc `z >= +2.0` (short).
-- Nến 15m đóng **quay lại trong band** (không đóng ngoài band).
+- **Wick xuyên ra ngoài band và nến đóng quay lại trong band** (chốt 19/11/2026):
+  - long: `low <= bb_dn` **và** `close > bb_dn`;
+  - short: `high >= bb_up` **và** `close < bb_up`.
+  Tương đương `|z|` tại wick ≥ 2,0 và `|z|` tại close < 2,0. Cách đọc cũ ("`z <= −2` **và** đóng trong band") là mâu thuẫn nội tại: hai điều kiện gần như không bao giờ cùng đúng (đo được 0,00–0,01 tín hiệu/ngày/symbol), đã bỏ.
+- `range_pct >= 50` (range 24h không quá hẹp so với lịch sử → TP phải lớn hơn phí).
 - `bbw_pct > 15`.
 - Không trong blackout tin macro (±45 phút).
 - Spread hiện tại < 2 bps.
@@ -1907,6 +1911,24 @@ Bản 1.x để Trend ở phase 3 và chạy shadow trước, `allow_short: fals
 | Trailing | lãi ≥1,5×ATR → `đỉnh − 2×ATR` | lãi ≥1,5×ATR → `đáy + 2×ATR` |
 
 Đơn giản hoá có chủ ý: bản 1.x yêu cầu "cấu trúc HH/HL" nhưng chưa định nghĩa code (pivot/fractal). MVP dùng **độ dốc EMA50 + thứ tự EMA** làm proxy cấu trúc; ghi lại ở đây để không ai tưởng đã implement đủ.
+
+### Hình học cụ thể (chốt 19/11/2026, dùng cho backtest P1.4 và code)
+
+Tính trên nến **1h** (signal), context **4h**, tất cả tại nến đã đóng — không dùng dữ liệu tương lai:
+
+| Thành phần | Định nghĩa |
+|---|---|
+| Pivot | Fractal `k=3`: swing high = `high[i]` cao hơn 3 nến mỗi bên; swing low ngược lại. Chỉ nhận pivot đã xác nhận (sau 3 nến) |
+| Impulse | Long: cặp swing low → swing high gần nhất có `high > low`; short: swing high → swing low gần nhất. `impulse_range = |high − low|` |
+| Vùng hồi | Long: `close` nằm trong `[high − 0,618×range, high − 0,30×range]`; short đối xứng |
+| Chạm EMA | Trong **5 nến 1h gần nhất**: long có `low <= max(EMA20, EMA50)`; short có `high >= min(EMA20, EMA50)`. Không yêu cầu chạm đúng 1 nến |
+| RSI | RSI(14) trên 1h: long 40–55, short 45–60 |
+| Volume giảm | Volume nến tín hiệu < SMA20(volume) cùng khung 1h |
+| ADX / EMA | `adx >= 22`, `EMA50 > EMA200` (long) hoặc `<` (short), `trend_dir` giữ ≥ 3 nến |
+| Context 4h | `EMA50` vs `EMA200` trên 4h phải **cùng chiều** với `trend_dir`; không tính lại `trend_dir` trên 4h |
+| SL | Long `swing_low − 1,5×ATR`; short `swing_high + 1,5×ATR` (ATR14 trên 1h) |
+
+Đây vẫn là **proxy**, không phải nhận diện cấu trúc HH/HL đầy đủ: pivot 3 nến không phân biệt được cấu trúc tăng dần/giảm dần. Ghi rõ để không ai tưởng đã implement đủ; muốn nâng cấp phải walk-forward trước.
 
 ### Điều kiện đánh giá sau 8 tuần live
 

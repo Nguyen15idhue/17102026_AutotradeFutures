@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.10 · Ngày: 18/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.0
+Phiên bản: 1.11 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.1
 
 ---
 
@@ -464,6 +464,18 @@ Trend là chiến lược tần suất thấp, ăn bằng đuôi dày: vào khi 
 
 Backtest ở bước này không phải để "tìm bộ tham số đẹp", mà để **chứng minh chiến lược không âm sau phí** và để có baseline so với mock/live sau này.
 
+### Quyết định đã chốt với user (19/11/2026)
+
+| # | Vấn đề | Quyết định |
+|---|---|---|
+| 1 | MR entry mâu thuẫn (`z ≤ −2` **và** đóng trong band ≈ 0 tín hiệu) | **Wick ra biên + đóng trong band**: long `low <= bb_dn` và `close > bb_dn`; short `high >= bb_up` và `close < bb_up` (0,43–0,58 tín hiệu/ngày/symbol). Thêm điều kiện `range_pct >= 50` |
+| 2 | Dữ liệu backtest | Tải **10 symbol × 24 tháng** (2024-12-01 → 2026-11-18) từ `data.binance.vision`, ghi vào `data/market` (đã gitignore) |
+| 3 | Nghĩa "walk-forward" khi tham số đóng băng | **Không tune**. Chia lịch sử thành các slice **2 tháng**, báo cáo từng slice; **6 tháng cuối = out-of-sample, chạy đúng 1 lần** |
+| 4 | Hình học Trend (impulse, chạm EMA) | **Pivot fractal k=3** + fib 30–61,8% trên impulse; "chạm EMA" = trong 5 nến 1h có `low <= max(EMA20, EMA50)` (long) / `high >= min(...)` (short); ghi rõ là proxy, không phải HH/HL thật (spec §15.2) |
+| 5 | Profile đo DD cho gate < 8% | **0,5%/lệnh (mock)** — khắt khe hơn; đạt ở 0,5% thì 0,25% chắc chắn đạt |
+
+Tự quyết (không cần user): funding lấy lịch sử thật, thiếu thì fallback 0,01%/8h; phí maker 2 bps / taker 5 bps + slippage 5 bps; context 4h = EMA50 vs EMA200 cùng chiều `trend_dir`; chia commit P1.4a (engine + MR) / P1.4b (Trend) / P1.4c (walk-forward + report).
+
 ### Ước lượng tần suất trước backtest (baseline 18/11/2026)
 
 Đo trên **BTC/ETH/SOL × 168 ngày** (2026-06-01 → 11-15) với regime hiện có. Đây **không phải backtest**: điều kiện vào lệnh là proxy, thiếu cấu trúc HH/HL và impulse thật; dùng để đặt kỳ vọng, không để kết luận.
@@ -479,7 +491,7 @@ Backtest ở bước này không phải để "tìm bộ tham số đẹp", mà 
 
 Ghi chú:
 
-- **Điều kiện MR trong spec tự mâu thuẫn** ("z ≤ −2" và "đóng quay lại trong band" không thể cùng đúng). Phải chốt một trong ba cách đọc ở bảng trên (khuyến nghị: wick ra biên + đóng vào band) trước khi code.
+- **Điều kiện MR trong spec đã được chốt lại 19/11/2026** thành "wick ra biên + đóng trong band" (spec v2.1 §6.3). Cách đọc literal cũ (`|z|≥2` **và** đóng trong band) cho 0,00–0,01 tín hiệu/ngày/symbol → không dùng.
 - Trend ước lượng **cao hơn ~10 lần** dự phóng của spec (3–8 lệnh/tuần/25 symbol) vì proxy chưa có structure + impulse thật → coi là **cận trên**.
 - Long/short lệch **≈1,76:1** trong giai đoạn này (thị trường tăng) → nhánh short sẽ có ít mẫu hơn long.
 - Win 54,1% và R trung bình 0,37 **chưa có phí/funding/slippage** → **không phải bằng chứng edge**, chỉ dùng cho tần suất.
@@ -489,12 +501,12 @@ Ghi chú:
 
 ### Việc cần làm
 
-1. Implement MR: chốt cách đọc điều kiện vào lệnh (khuyến nghị: wick ra biên + đóng lại trong band — xem baseline), `bbw_pct > 15`, spread < 2 bps, không blackout.
+1. Implement MR: **wick ra biên + đóng lại trong band** (đã chốt 19/11/2026), `bbw_pct > 15`, `range_pct >= 50`, spread < 2 bps, không blackout.
 2. Entry MR: limit post-only `best_bid + 1 tick`, TTL 2 nến, không đuổi giá quá 0,3 ATR.
 3. Exit MR: SL `range_low − 1,2 ATR`, TP mid, time stop 12 nến, regime flip đóng ngay.
 4. Implement Trend đối xứng: `trend_dir` 3 nến + khớp EMA 1h, hồi 30–61,8%, chạm EMA20/50, RSI, entry **market tại open nến 1h** + guard spread 2 bps, SL 1,5×ATR, trailing 2×ATR sau 1,5×ATR, time stop 36 nến.
 5. Backtest engine: event-driven 1m, fill model bảo thủ (limit chỉ khớp khi giá xuyên qua; market chịu slippage), phí maker/taker thật, funding, slippage 5bps.
-6. Walk-forward: 6 tháng train / 2 tháng test, cuộn. Out-of-sample 6 tháng cuối **chỉ chạy 1 lần**.
+6. Walk-forward: **không tune tham số**; chia slice 2 tháng, báo cáo riêng từng slice; **6 tháng cuối = out-of-sample, chạy đúng 1 lần**.
 7. Báo cáo **tách theo `strategy_id` và `side`**: expectancy, WR, R distribution, DD, theo coin, theo tháng.
 8. Đo khoảng SL thực tế của MR và Trend → dùng cho quyết định nâng risk ở live tuần 4 (margin 60% là cap chặn thật).
 
@@ -813,3 +825,4 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | 18/11/2026 | 1.8 | **P1.2b xong:** khung 4h, `trend_dir` (field, bền 3 nến, 0 ngoài TREND), migration `regime.trend_dir`, hash replay format v2 (`55530fb1…`), script `p1.2b-check.ps1`, CI job `engine`; gate A đổi sang đo tương đối (2,44×), gate D giữ fail 50,85% có ghi chú |
 | 18/11/2026 | 1.9 | P1.4: thêm baseline tần suất đo trên BTC/ETH/SOL (MR 0,3–0,6 tín hiệu/ngày/symbol; Trend proxy 0,33–0,47 lệnh/ngày/symbol); ghi rõ điều kiện MR trong spec tự mâu thuẫn và phải chốt cách đọc trước khi code |
 | 18/11/2026 | 1.10 | **P1.3 xong:** config loader + validate; schema `positions` mở rộng + `signals`/`equity`/`commands`; risk fail-fast 18 lý do + sizing floor; executor SL ngay sau fill (short = buy-stop), trailing make-before-break, recovery; kill switch 3 cấp; `exchange/orders.py` thêm `fetch_order`/`cancel_order`/`cancel_algo`/`time_in_force`/`reduce_only` (soak chưa chạy); 208 test; integration SL 9ms, orphan 0, kill 35ms; phát hiện & sửa bug shape `openAlgoOrders`; ghi nhận reconcile chưa so algo |
+| 19/11/2026 | 1.11 | **Chốt 5 quyết định P1.4** (spec bump v2.1): MR = wick ra biên + đóng trong band + `range_pct ≥ 50`; dữ liệu 10 symbol × 24 tháng; walk-forward = slice 2 tháng báo cáo riêng, OOS 6 tháng chạy 1 lần, không tune; Trend dùng pivot fractal k=3 + fib 30–61,8% + chạm EMA20/50 trong 5 nến (proxy, không phải HH/HL); gate DD đo ở 0,5%/lệnh |
