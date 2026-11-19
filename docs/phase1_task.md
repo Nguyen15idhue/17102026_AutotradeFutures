@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.13 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
+Phiên bản: 1.14 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
 
 ---
 
@@ -648,6 +648,36 @@ Script: `scripts/ps/p1.4-check.ps1 -Mode Diagnose` → `data/reports/p1.4-diagno
 
 > Ghi chú trung thực: lần đo đầu tiên dùng path 12 **phút** thay vì 12 nến 15m, cho số sai (TP 5,6%). Đã sửa (hằng số `MR_PATH_MIN = 180`, `TREND_PATH_MIN = 2160`) và chạy lại; số trong bảng là bản đã sửa.
 
+### P1.4b — quét tín hiệu mới trên IS (19/11/2026)
+
+Mục tiêu: tìm **một** tín hiệu có edge thật trước khi viết chiến lược, thay vì sửa TP/SL của chiến lược không có edge.
+
+Quy tắc đặt trước (để không p-hacking):
+
+- Mỗi tín hiệu phải có cơ chế viết trước, không thêm sau khi thấy số.
+- Lấy mẫu **không chồng lấn** (bước = horizon); báo `t-stat`, % coin cùng dấu.
+- Chỉ ứng viên đạt **mean > 2× chi phí round-trip (~20 bps taker+slip)**, `t ≥ 3`, ≥60% coin cùng dấu mới được sang OOS.
+- Không dùng nhãn regime (đã chứng minh không có thông tin hướng).
+
+Kết quả IS 2024-12-01 → 2026-05-01 (10 symbol, `signal_scan.py`):
+
+| Tín hiệu | Horizon | n | Hit | Mean (bps) | t | % coin + |
+|---|---|---|---|---|---|---|
+| `mom24h` (momentum 24h) | 24h | 5.140 | 50,4% | **+11,1** | 1,80 | 60% |
+| `mom24h` | 48h | 2.560 | 46,6% | −46,9 | −3,72 | 0% |
+| `brk20h` (phá đỉnh 20h) | 2h / 6h / 24h | 2.698 / 778 / 212 | 47,7 / 44,9 / 45,3% | +1,3 / −9,7 / −94,2 | 0,44 / −1,01 / −2,90 | 50 / 40 / 0% |
+| `z2.5` (MR mạnh) | 1h / 2h / 4h | 5.162 / 2.538 / 1.170 | 53,2 / 52,8 / 52,0% | +0,2 / **+3,4** / +2,1 | 0,10 / 1,11 / 0,35 | 60 / 70 / 60% |
+| `bandfade_lowvol` | 1h / 2h / 4h | 2.991 / 1.524 / 716 | 51,9 / 51,4 / 47,8% | +0,9 / −0,4 / −7,3 | 0,67 / −0,14 / −1,47 | 60 / 50 / 10% |
+| `volexp` (vol mở rộng) | 2h / 6h / 24h | 11.051 / 3.004 / 625 | 48,3 / 47,7 / 43,5% | +1,5 / −1,8 / −40,6 | 0,93 / −0,37 / −1,89 | 80 / 50 / 10% |
+| `brk4h20` (breakout 4h) | 24h / 48h | 447 / 187 | 47,0 / 42,8% | −25,2 / −65,5 | −1,00 / −1,35 | 30 / 40% |
+
+**Kết luận: không tín hiệu nào đạt ngưỡng.** Edge lớn nhất là momentum 24h với **+11 bps/24h**, trong khi chi phí round-trip ~20 bps (taker 10 bps + slippage 10 bps) — chưa tính funding. `z2.5` chỉ +3,4 bps/2h. Breakout 20h và 4h **âm** (phá đỉnh xong quay đầu trong mẫu này), momentum 48h cũng âm mạnh (t = −3,7) tức thị trường đảo chiều ở khung 2 ngày.
+
+⇒ **Không đưa ứng viên nào sang OOS** — chạy OOS với tín hiệu đã fail IS chỉ làm mất một lần OOS. Bộ dữ liệu 2023-01 → 2024-11 vẫn nguyên cho ứng viên sau này.
+
+Bài học đo được: ở 15m–4h trên 10 coin, các tín hiệu dựng từ OHLCV công khai có edge **nhỏ hơn chi phí giao dịch**. Muốn có edge phải tìm ở nơi khác (cross-sectional/relative value, funding, hoặc dữ liệu ngoài OHLCV), không phải tinh chỉnh thêm chỉ báo.
+
+
 
 
 ### Ghi chú
@@ -943,3 +973,4 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | 19/11/2026 | 1.11 | **Chốt 5 quyết định P1.4** (spec bump v2.2): MR = wick ra biên + đóng trong band, guard `TP ≥ 0,3%` thay `range_pct ≥ 50` (mâu thuẫn với RANGE); dữ liệu 10 symbol × 24 tháng; walk-forward = slice 2 tháng báo cáo riêng, OOS 6 tháng chạy 1 lần, không tune; Trend dùng pivot fractal k=3 + fib 30–61,8% + chạm EMA20/50 trong 5 nến (proxy, không phải HH/HL); gate DD đo ở 0,5%/lệnh |
 | 19/11/2026 | 1.12 | **P1.4 xong — NO-GO:** backtest engine 1m + MR + Trend L/S + walk-forward 9 slice + OOS; 1.957 lệnh MR E[R] −0,119R, 598 lệnh Trend E[R] −0,067R (L −0,077/S −0,060); gross âm trước phí; DD 74,8%; OOS cùng dấu (−0,107R); 4/8 cổng; nguyên nhân: MR TP chỉ +0,27R vs SL −1,13R và 59% thoát do regime sau ~1h; Trend 89% thoát do regime sau ~4,2h nên trailing không chạy; **không tune**, không bật live |
 | 19/11/2026 | 1.13 | **Chẩn đoán P1.4:** slippage 0 vẫn −0,073R (chi phí không phải gốc); MR barrier đối xứng 1R/1R = 46,3%/47,3% (≈ tung xu, không có edge); Trend P(MFE≥1,5R) 12,6–17,1% so với ~40% của random walk; `trend_dir` đúng 47,9%; corr(z,fwd8) ≈ −0,001 ⇒ **lỗi ở tầng tín hiệu/regime, không phải exit**; sửa bug path 12 phút → 180 phút (`MR_PATH_MIN`) trước khi kết luận |
+| 19/11/2026 | 1.14 | **P1.4b quét 6 tín hiệu trên IS — không tín hiệu nào đạt:** mạnh nhất `mom24h` +11,1 bps/24h (t=1,8) < chi phí ~20 bps; `z2.5` +3,4 bps/2h; breakout 20h và 4h âm; momentum 48h −46,9 bps (t=−3,7). Không đưa ứng viên nào sang OOS (giữ nguyên dữ liệu 2023-01→2024-11). Kết luận: edge từ OHLCV 15m–4h nhỏ hơn chi phí |
