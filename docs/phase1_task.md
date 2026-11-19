@@ -1,7 +1,7 @@
 # PHASE 1 TASK — MVP BOT BINANCE FUTURES
 
 **Tài liệu triển khai chi tiết · Phase 1/3**
-Phiên bản: 1.15 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
+Phiên bản: 1.16 · Ngày: 19/11/2026 · Tham chiếu gốc: `docs/mvp-binance-futures-bot.md` v2.2
 
 ---
 
@@ -726,6 +726,71 @@ Funding APY thực đo trên 10 coin lớn: BTC 4,7% · LINK 5,5% · DOGE 4,3% �
 
 **Không nên làm:** nới risk/leverage để "cho có lãi". Không có edge thì nới risk chỉ làm cháy nhanh hơn; dữ liệu P1.4 cho thấy âm cả trước phí.
 
+### P1.4d — universe rộng 24 coin + funding cực trị + đòn bẩy 5x (19/11/2026)
+
+User duyệt: **chấp nhận rủi ro cao hơn, thử cả 5x** (chỉ trong nghiên cứu; config live vẫn 3x cho tới khi có bằng chứng).
+
+**1. Funding cực trị (24 coin, 2023-01 → 2026-11, phí 20 bps/trade):**
+
+| Tín hiệu | n | Hit | Mean/trade | t | 1x CAGR/DD |
+|---|---|---|---|---|---|
+| Short khi funding > 30%/năm (crowded long) | 464 | 55,0% | **−43,7 bps** | −1,27 | −13,1% / 53,6% |
+| Short khi funding > 60%/năm | 136 | 49,3% | −119,6 bps | −1,78 | −9,4% / 41,0% |
+| **Long khi funding < −30%/năm** (crowded short) | 336 | 51,5% | **+60,8 bps** | 1,73 | +9,8% / 12,7% |
+| Long, giữ 3 ngày, ngưỡng 30% | 244 | 52,5% | +189,3 bps | 2,39 | +26,1% / 10,5% |
+| Long, giữ 3 ngày, ngưỡng 50% | 100 | 53,0% | +401,3 bps | 2,32 | +22,4% / 5,0% |
+
+→ Short crowded-long **thua** (funding cao thường đi cùng uptrend mạnh). Long khi **funding âm sâu** mới là phía có edge: đó là lúc phe short đang trả tiền và thị trường capitulate.
+
+**2. Stress-test giai đoạn bear 2020-2022 (10 coin có lịch sử):**
+
+| Biến thể | n | Mean/trade | t | 1x CAGR/DD |
+|---|---|---|---|---|
+| Long thr 20% · giữ 7 ngày | 210 | +391 bps | 3,57 | +71,6% / 12,2% |
+| Long thr 30% · giữ 3 ngày | 213 | +148 bps | 1,71 | +21,9% / 18,0% |
+| Long thr 50% · giữ 3 ngày | 127 | −7 bps | −0,07 | −1,6% / 30,7% |
+
+→ Họ tín hiệu **sống qua cả bear** ở ngưỡng 20–30%; ngưỡng 50% không ổn định (mẫu nhỏ, 2022 thua).
+
+**3. Benchmark beta — BTC + lọc SMA200 (dữ liệu ngày, phí 10 bps/lần đổi):**
+
+| | 2023-2026 CAGR/DD | 2020-2022 CAGR/DD |
+|---|---|---|
+| BTC buy & hold | 49,4% / 53,0% | 32,1% / 76,7% |
+| BTC SMA200 1x | 62,4% / 20,6% | 97,1% / 32,7% |
+| BTC SMA200 2x | 136,6% / 39,9% | 219,3% / 57,8% |
+| BTC SMA200 3x | 209,4% / 57,3% | 323,7% / 75,6% |
+| BTC SMA200 4x | 263,4% / 73,1% | 354,1% / 87,4% |
+| BTC SMA200 5x | 282,0% / 84,7% | 281,1% / 95,2% |
+
+**Số ngày vượt ngưỡng thanh lý xấp xỉ** (1/L − MMR 0,5%; ước lượng theo nến ngày, không thấy được thứ tự trong ngày):
+
+| Đòn bẩy | Ngưỡng | 2023-2026 | 2020-2022 |
+|---|---|---|---|
+| 3x | 32,8% | 0 ngày | **6 ngày** |
+| 4x | 24,5% | 23 ngày | 46 ngày |
+| 5x | 19,5% | **82 ngày** | **100 ngày** |
+
+→ **5x BTC là không dùng được**: có 82–100 ngày adverse vượt ngưỡng thanh lý, nên CAGR 282% chỉ là số ảo (tài khoản đã bị thanh lý từ trước). 3x cũng có 6 ngày vượt ngưỡng trong 2020-2022.
+
+**4. Funding-long với đòn bẩy (CAGR% / DD%, cùng nguồn JSON):**
+
+| Biến thể | 1x | 2x | 3x | 5x |
+|---|---|---|---|---|
+| thr 30% · 3 ngày (2023-26) | 30,5 / 10,5 | 67,3 / 20,1 | **111,0 / 28,7** | 221,4 / 43,5 |
+| thr 30% · 3 ngày (2020-22) | 21,9 / 18,0 | 45,3 / 33,6 | **69,4 / 47,0** | 115,7 / 67,9 |
+| thr 20% · 7 ngày (2023-26) | 38,1 / 33,4 | 87,4 / 56,2 | 150,2 / 71,9 | 325,1 / 89,1 |
+| thr 20% · 7 ngày (2020-22) | 71,6 / 12,2 | 190,1 / 23,1 | 383,2 / 32,7 | 1.186 / 48,8 |
+| thr 50% · 3 ngày (2020-22, mẫu xấu) | −1,6 / 30,7 | −5,2 / 53,8 | −10,5 / 70,5 | −25,9 / 89,7 |
+
+**Kết luận P1.4d:**
+
+- **5x không an toàn cho cả 2 họ**: BTC SMA200 bị thanh lý trong cả hai mẫu; funding-long 5x có 1 ngày vượt ngưỡng và DD 43–68%.
+- **3x funding-long thr 30% · giữ 3 ngày** là phương án "rủi ro cao" duy nhất dương ở **cả hai** giai đoạn: CAGR 69–111%, DD 29–47%, ~250 lệnh/4 năm.
+- Đây là **beta + long-biased**, không phải alpha thị trường trung tính: thắng nhờ mua capitulation trong thị trường tăng. Nếu crypto vào bear dài (như 2018), chiến lược chưa được kiểm chứng (2020-2022 vẫn có nhiều sóng tăng).
+- Trước khi dùng tiền thật: **paper 4–8 tuần** với đúng tham số, và giới hạn cứng: risk ≤1%/lệnh, tổng exposure ≤3x, kill switch khi DD ngày ≥3%.
+
+
 
 
 
@@ -1025,3 +1090,4 @@ Trend chạy **live cả long + short** ngay từ tuần đầu (quyết định
 | 19/11/2026 | 1.13 | **Chẩn đoán P1.4:** slippage 0 vẫn −0,073R (chi phí không phải gốc); MR barrier đối xứng 1R/1R = 46,3%/47,3% (≈ tung xu, không có edge); Trend P(MFE≥1,5R) 12,6–17,1% so với ~40% của random walk; `trend_dir` đúng 47,9%; corr(z,fwd8) ≈ −0,001 ⇒ **lỗi ở tầng tín hiệu/regime, không phải exit**; sửa bug path 12 phút → 180 phút (`MR_PATH_MIN`) trước khi kết luận |
 | 19/11/2026 | 1.14 | **P1.4b quét 6 tín hiệu trên IS — không tín hiệu nào đạt:** mạnh nhất `mom24h` +11,1 bps/24h (t=1,8) < chi phí ~20 bps; `z2.5` +3,4 bps/2h; breakout 20h và 4h âm; momentum 48h −46,9 bps (t=−3,7). Không đưa ứng viên nào sang OOS (giữ nguyên dữ liệu 2023-01→2024-11). Kết luận: edge từ OHLCV 15m–4h nhỏ hơn chi phí |
 | 19/11/2026 | 1.15 | **P1.4c thử 2 họ còn lại — cũng âm:** 7 chiến lược danh mục (xsmom/xsrev/tsmom/donchian/funding perp-perp) đều âm, phí đổi vị thế 7–18%/năm; funding carry spot+perp trên 10 coin lớn chỉ +0,55%/năm ở kịch bản phí thấp nhất 3 tháng (funding APY trung bình 2,7%). Ghi toán học 300 USD: risk 1,5 USD/lệnh, phí ≈10% của risk ⇒ mục tiêu lãi ổn định không đạt được nếu không tăng vốn/giảm phí/đổi universe |
+| 19/11/2026 | 1.16 | **P1.4d universe 24 coin + funding cực trị + 5x:** short crowded-long âm (−43,7 bps/trade); **long khi funding < −30%/năm dương** (+61 đến +189 bps/trade, t 1,7–2,4) và sống qua bear 2020-2022 ở ngưỡng 20–30%. BTC SMA200 5x **bị thanh lý** (82–100 ngày vượt ngưỡng 19,5%); 3x cũng có 6 ngày vượt ngưỡng trong 2020-2022. Đề xuất duy nhất: funding-long thr 30% · giữ 3 ngày · 2–3x (CAGR 69–111%, DD 29–47%) — cần paper 4–8 tuần, không live ngay |

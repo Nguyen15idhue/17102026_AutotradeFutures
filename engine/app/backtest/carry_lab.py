@@ -66,14 +66,31 @@ def _parse_zip(payload: bytes) -> dict[int, float]:
 
 
 def load_hourly(kind: str, sym: str, start: date, end: date, cache_dir: Path) -> dict[int, float]:
+    lo = int(calendar.timegm(start.timetuple())) * 1000
+    hi = int(calendar.timegm(end.timetuple())) * 1000
     p = cache_dir / kind / f"{sym}.json"
     if p.is_file():
         raw = json.loads(p.read_text(encoding="utf-8"))
-        return {
+        cached = {
             int(k): float(v)
             for k, v in raw.items()
             if 10**12 <= int(k) <= 2 * 10**12 and float(v) > 0
         }
+        if cached and min(cached) <= lo and max(cached) >= hi - 3_600_000:
+            return {k: v for k, v in cached.items() if lo <= k < hi}
+        # cache khong phu khoang yeu cau -> tai va gop
+        out = dict(cached)
+        from ..data.downloader import http_fetch
+
+        for stamp in _months(start, end):
+            url = MONTHLY[kind].format(sym=sym, stamp=stamp)
+            try:
+                out.update(_parse_zip(http_fetch(url, timeout=30)))
+            except Exception:
+                continue
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps({str(k): v for k, v in sorted(out.items())}), encoding="utf-8")
+        return {k: v for k, v in out.items() if lo <= k < hi}
     from ..data.downloader import http_fetch
 
     out: dict[int, float] = {}
@@ -158,6 +175,7 @@ def run(
     *,
     fee_bps: float = 38.0,
     every_months: int = 1,
+    min_funding: float = 0.0,
 ) -> dict[str, Any]:
     cache = data_dir / "carry"
     spot: dict[str, dict[int, float]] = {}
@@ -201,6 +219,10 @@ def run(
             r = cycle_return(spot[sym], perp[sym], funding[sym], first[0], last[1], fee_bps=fee_bps)
             if r is None:
                 continue
+            if min_funding > 0:
+                fsum = sum(rate for ts, rate in funding[sym].items() if first[0] <= ts <= last[1])
+                if fsum < min_funding:
+                    continue
             rets.append(r)
             per_symbol[sym].append(r)
         if rets:
@@ -242,15 +264,24 @@ def main(argv: list[str] | None = None) -> int:
     out = {"period": {"start": args.start, "end": args.end}, "runs": {}}
     for fee in (38.0, 20.0):
         for every in (1, 3):
-            key = f"fee{fee:g}_every{every}m"
-            out["runs"][key] = run(data_dir, symbols, start, end, fee_bps=fee, every_months=every)
-            st = out["runs"][key]["portfolio"]
-            print(
-                f"{key:20s} thang={out['runs'][key]['months_used']:3d} "
-                f"CAGR={st.get('cagr_pct')}% vol={st.get('vol_pct')}% "
-                f"Sharpe={st.get('sharpe')} DD={st.get('max_dd_pct')}%",
-                flush=True,
-            )
+            for min_f in (0.0, 0.001, 0.002):
+                key = f"fee{fee:g}_every{every}m_min{min_f:g}"
+                out["runs"][key] = run(
+                    data_dir,
+                    symbols,
+                    start,
+                    end,
+                    fee_bps=fee,
+                    every_months=every,
+                    min_funding=min_f,
+                )
+                st = out["runs"][key]["portfolio"]
+                print(
+                    f"{key:32s} thang={out['runs'][key]['months_used']:3d} "
+                    f"CAGR={st.get('cagr_pct')}% vol={st.get('vol_pct')}% "
+                    f"Sharpe={st.get('sharpe')} DD={st.get('max_dd_pct')}%",
+                    flush=True,
+                )
     p = Path(args.out)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")

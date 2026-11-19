@@ -76,19 +76,34 @@ def fetch(symbol: str, start: date, end: date, timeout: float = 30.0) -> dict[in
 def load_or_fetch(
     root: str | Path, symbol: str, start: date, end: date
 ) -> tuple[dict[int, float], bool]:
-    """Doc cache data/funding/{symbol}.json; chua co thi tai.
+    """Doc cache data/funding/{symbol}.json; tai/gop them neu cache khong phu khoang.
 
     Tra (rates, co_du_lieu). `co_du_lieu=False` -> caller fallback hang so va ghi ro
     trong report; khong duoc im lang coi funding = 0.
     """
 
+    import calendar
+
     d = Path(root) / "funding"
     d.mkdir(parents=True, exist_ok=True)
     p = d / f"{symbol}.json"
+    start_ms = int(calendar.timegm(start.timetuple())) * 1000
+    end_ms = int(calendar.timegm(end.timetuple())) * 1000
+
+    def _aligned(raw: dict) -> dict[int, float]:
+        return {int(k) - int(k) % 60_000: float(v) for k, v in raw.items()}
+
     if p.is_file():
-        raw = json.loads(p.read_text(encoding="utf-8"))
-        aligned = {int(k) - int(k) % 60_000: float(v) for k, v in raw.items()}
-        return aligned, bool(aligned)
+        cached = _aligned(json.loads(p.read_text(encoding="utf-8")))
+        if cached and min(cached) <= start_ms and max(cached) >= end_ms - 28_800_000:
+            return cached, True
+        merged = dict(cached)
+        merged.update({ts - ts % 60_000: float(v) for ts, v in fetch(symbol, start, end).items()})
+        if merged:
+            p.write_text(
+                json.dumps({str(k): v for k, v in sorted(merged.items())}), encoding="utf-8"
+            )
+        return merged, bool(merged)
     rates = fetch(symbol, start, end)
     aligned = {ts - ts % 60_000: float(v) for ts, v in sorted(rates.items())}
     if aligned:
